@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+    <head>
+    <meta charset="UTF-8"/>
+    <title>Login</title>
+    <link rel="stylesheet" href="/css/login.css">
+    <script
+        src="https://code.jquery.com/jquery-3.7.1.js"
+        integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+        crossorigin="anonymous">
+    </script>
+</head>
+<body>
+
+
+    
+    <div class="container">
+
+
+
+<div class="row">
+    
+
+        
+     <div class="wrapper fadeInDown">
+        <br><br><br><br><br><br><br>
+                                 
+                <div id="formContent">
+                    <!-- Tabs Titles -->
+
+                    <!-- Icon -->
+                    <div class="fadeIn first">
+                        <h3>Login</h3>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form method="POST" th:action="@{/login}" >
+                        <input type="text"  class="fadeIn second" name="username" placeholder="Usuario">
+                        <input type="password"  class="fadeIn third" name="password" placeholder="Contraseña">
+                        <input type="submit" class="fadeIn fourth" value="Login">
+                    </form>
+ 
+                                        <!-- Remind Passowrd -->
+                    <div id="formFooter">
+                        <a id="mensajeError" class="underlineHover" style="color:red;display:none">Usuario o contraseña incorrectos</a>
+                    </div>
+
+                </div>
+            </div>
+
+<script>
+   document.addEventListener("DOMContentLoaded", function () { 
+    const params = new URLSearchParams(window.location.search);
+
+        // Si la URL contiene ?error, mostrar el mensaje
+        if (params.has('error')) {
+            document.getElementById('mensajeError').style.display = 'block';
+        }
+    });
+</script>    
+</div>
+
+
+        
+   
+        
+       
+    
+
+
+         
+
+    
+  
+
+
+    
+            
+            <br/><!-- comment -->
+           <br/>
+            
+          
+
+    </div>
+      
+      </body>
+   
+</html>

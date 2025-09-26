@@ -1,0 +1,65 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+    <head th:replace="plantillas/plantilla::head">
+        <title>Sistema de reportes</title>
+        <<link rel="stylesheet" href="/jquery-3.7.1.min"/>
+    </head>
+    <body>
+        <header th:replace="plantillas/plantilla::header">lista de tareas</header>
+         <div th:replace="plantillas/plantilla::notificaciones"></div>
+<div class="container">
+        <h1 >Usuarios registrados</h1>
+            
+                <table class="table table-bordered table-hover table-sm ">
+                    <thead class="thead-light ">
+                        <tr>
+                            <th th:text="Nombre"></th>
+                            <th th:text="Rol"></th>
+                            <th th:text="Acciones"></th>
+                        </tr>
+                    </thead>
+                    <tr th:each="usuario: ${usuarios }">
+                        <td th:text="${usuario.username}"></td>
+                        <td th:text="${usuario.rol.nombre}" th:id="'rol'+${usuario.idUsuario}"></td>
+                        <td ><a th:href="@{/editarUsuario/}+${usuario.idUsuario}"th:text="Editar"></a>/
+
+                        <a th:if="${usuario.inhabilitado==false}"th:href="@{/eliminarUsuario/}+${usuario.idUsuario}"th:text="Inhabilitar"></a>
+                        <a th:if="${usuario.inhabilitado==true}"th:href="@{/habilitarUsuario/}+${usuario.idUsuario}"th:text="Habilitar"></a></td>
+
+                    </tr>
+                    <script>
+                     $(document).ready(function() {
+                                    // Iterar sobre cada span con el ID que has generado 
+                                    //DMS el selector hace referencia a todos os ids que comiencen con rol
+                                    $('[id^="rol"]').each(function(index) {
+                                         var texto = $(this).text();
+                                        // Realizar la sustitución de cadenas
+                                        switch(texto) {
+                                            case "ROLE_ADMIN":
+                                                texto = "Administrador";
+                                                break;
+                                            case "ROLE_OP":
+                                                texto = "Operador";
+                                                break;
+                                           
+                                        }
+                                       $(this).text(texto);
+                                    });
+                                });
+
+                    </script>
+                </table>
+        <a th:href="@{/crearUsuario/}" class="btn btn-primary">Crear usuario</a>
+
+
+        <a th:href="@{/menuPrincipal}" class="btn btn-primary" >Volver</a>
+            </div>
+        
+        
+        
+        
+        
+
+    </body>
+</html>
+

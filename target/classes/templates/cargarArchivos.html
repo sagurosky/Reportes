@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Carga de archivos Excel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"/>
+    <style>
+        .dropzone {
+            border: 2px dashed #0d6efd;
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .dropzone:hover {
+            background: #e9f0ff;
+        }
+
+        .dz-message {
+            font-weight: 500;
+            color: #6c757d;
+        }
+
+        pre#resultado {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f1f1f1;
+        }
+        body {
+          background: url('/recursos/img8.jpg') no-repeat center center fixed;
+          background-image: url('/recursos/img8.jpg') no-repeat center center fixed;
+          background-size: cover;
+          background-position: center;
+          background-attachment: fixed;
+          min-height: 100vh;
+        }
+         #miDropzone { min-height: 180px; padding: 30px; border: 2px dashed #0d6efd; background: #f8f9fa; border-radius: 10px; }
+  #miDropzone:hover { background: #e9f0ff; }
+  #miDropzone .dz-message { margin: 0; }
+    </style>
+</head>
+<body class="bg-light">
+<header th:replace="plantillas/plantilla::header"></header>
+<div class="container py-5">
+    <div class="card shadow-lg border-0">
+        <div class="card-header text-center mb-4">
+            <h2 class="fw-bold text-primary">📊 Carga de Archivos Excel</h2>
+        </div>
+        <div class="card-body">
+
+            <!-- Selector de sucursal -->
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Seleccione la sucursal:</label>
+                <select id="sucursalSelect" class="form-select">
+                    <option value="">-- Seleccione una sucursal --</option>
+                    <option th:each="s : ${sucursales}" th:value="${s.id}" th:text="${s.nombre}"></option>
+                </select>
+            </div>
+
+            <!-- Dropzone -->
+            <form action="/subirArchivosExcel" class="dropzone text-center" id="miDropzone">
+                <input type="hidden" name="sucursalId" id="sucursalIdHidden"/>
+                <div class="dz-message needsclick">
+                    <i class="bi bi-cloud-arrow-up display-4 text-primary"></i>
+                    <p class="mt-2">Suelta tus archivos aquí o haz clic para seleccionarlos</p>
+                </div>
+            </form>
+
+            <div class="mt-4">
+                <label class="fw-semibold mb-2">📄 Resultados:</label>
+                <pre id="resultado" class="border p-3 rounded"></pre>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col"></div>
+        <div class="col"><a th:href="@{/menuPrincipal}" class="btn btn-primary ">Volver</a></div>
+        <div class="col"></div>
+    </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
+<script>
+    Dropzone.autoDiscover = false;
+
+    const dz = new Dropzone("#miDropzone", {
+      url: "/subirArchivosExcel",
+      method: "post",
+      paramName: "file",
+      autoProcessQueue: false,              // control manual
+      uploadMultiple: false,
+      parallelUploads: 1,
+      maxFilesize: 10,
+      acceptedFiles: ".xls,.xlsx",
+      clickable: ["#miDropzone", ".dz-message"], // cuadro grande clickeable
+      addRemoveLinks: true,
+      dictDefaultMessage: "Arrastra los archivos aquí o haz clic para seleccionar",
+      init: function () {
+        this.on("addedfile", (file) => {
+              const sel = document.getElementById("sucursalSelect");
+              const sucursalId = sel.value;
+              const sucursalText = sel.options[sel.selectedIndex]?.text || "";
+
+              if (!sucursalId) {
+                Swal.fire("⚠️ Atención", "Debe seleccionar una sucursal antes de subir archivos", "warning");
+                this.removeFile(file);
+                return;
+              }
+
+              // 👉 guardamos el id en el hidden input antes de enviar
+              document.getElementById("sucursalIdHidden").value = sucursalId;
+
+              Swal.fire({
+                title: "Confirmar sucursal",
+                text: `El archivo será cargado para la sucursal: ${sucursalText}. ¿Desea continuar?`,
+                icon: "question",
+                showCancelButton: true,
+                confirmButtonText: "Sí, continuar",
+                cancelButtonText: "Cancelar"
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  this.processFile(file); // usa processFile (no enqueue+processQueue)
+                } else {
+                  this.removeFile(file);
+                }
+              });
+            });
+
+
+        // Adjuntar sucursalId en el envío
+        this.on("sending", (file, xhr, formData) => {
+          const sucursalId = document.getElementById("sucursalSelect").value;
+          formData.append("sucursalId", sucursalId);
+        });
+
+        this.on("success", (file, response) => {
+          const msg = (response && response.mensaje) ? response.mensaje : "✅ Archivo procesado correctamente.";
+          document.getElementById("resultado").textContent += msg + "\n";
+        });
+
+        this.on("error", (file, errorMessage, xhr) => {
+          let mensaje = "❌ Error al subir el archivo.";
+          if (xhr && xhr.responseText) {
+            try { mensaje = JSON.parse(xhr.responseText).mensaje || xhr.responseText; } catch { mensaje = xhr.responseText; }
+          } else if (typeof errorMessage === "string") {
+            mensaje = errorMessage;
+          }
+          document.getElementById("resultado").textContent += mensaje + "\n";
+        });
+      }
+    });
+</script>
+
+
+</body>
+</html>
