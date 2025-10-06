@@ -52,7 +52,7 @@ public class ControladorSucursal {
                 return "sucursales/lista";
             }
         }
-
+//DMS prueba gitignore
         // 💾 Guardar o actualizar
         sucursalService.guardar(sucursal);
 
