@@ -1,101 +1,121 @@
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:th="http://www.thymeleaf.org">
-    <head th:replace="plantillas/plantilla::head">
-        <title>Sistema de reportes</title>
-    </head>
-    <body>
-        <header th:replace="plantillas/plantilla::header"></header>
-        <div class="container">
-           <div class="text-center">
-            <h1 >Crear usuarios</h1>
-           </div> 
-            <br>
-             <div class="card mx-auto"style="width: 50rem;">
+<head th:replace="plantillas/plantilla::head">
+    <title>Sistema de reportes</title>
+</head>
+<body>
+<header th:replace="plantillas/plantilla::header"></header>
+<div class="volver-fijo d-flex justify-content-end px-4 pt-3">
+    <a th:href="@{/menuPrincipal}" class="btn btn-primary btn-lg">
+        <i class="bi bi-arrow-left-circle"></i> Volver
+    </a>
+</div>
+<div class="container">
+    <div class="text-center">
+        <h1>Crear usuarios</h1>
+    </div>
+    <br>
+    <div class="card mx-auto" style="width: 50rem;">
 
-                 <form method="POST"
-                       th:action="${usuario.idUsuario == null} ? @{/gestionar} : @{/guardarUsuarioEditado}"
-                       th:object="${usuario}"
-                       class="form-group">
-<!--DMS envia a distinto endpoint si estoy creando un usuario nuevo o si es una modificacion-->
-                     <input type="hidden" th:field="*{idUsuario}"/>
-                 <div class="card-header ">
-                        <label th:if="${usuario.username ==null}">Nuevo usuario</label>
-                        <label th:if="${usuario.username !=null}">Edición de usuario</label>
+        <form method="POST"
+              th:action="${usuario.idUsuario == null} ? @{/gestionar} : @{/guardarUsuarioEditado}"
+              th:object="${usuario}"
+              class="form-group">
+            <!--DMS envia a distinto endpoint si estoy creando un usuario nuevo o si es una modificacion-->
+            <input type="hidden" th:field="*{idUsuario}"/>
+            <div class="card-header ">
+                <label th:if="${usuario.username ==null}">Nuevo usuario</label>
+                <label th:if="${usuario.username !=null}">Edición de usuario</label>
 
-                 </div>
-                    <div class="row">
-                        <div class="col-3"></div>   
-                        <div class="col-6">
-                     <div class="card-body ">
-                       
-                        <div class="row"> 
-                            <div class="col" >
-                               <div class="form-floating  ">
-                                  <input type="text"  class="form-control" th:id="username"th:name="username" placeHolder="Usuario" th:field="*{username}">
-                                  <label >usuario</label>
-                              </div><span th:if="${#fields.hasErrors('username')}" th:errors="*{username}">Error en nombre</span>
-                           </div> 
+            </div>
+            <div class="row">
+                <div class="col-3"></div>
+                <div class="col-6">
+                    <div class="card-body ">
+
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-floating  ">
+                                    <input type="text" class="form-control" th:id="username" th:name="username"
+                                           placeHolder="Usuario" th:field="*{username}">
+                                    <label>usuario</label>
+                                </div>
+                                <span th:if="${#fields.hasErrors('username')}" th:errors="*{username}"
+                                      style="color:red">Error en nombre</span>
+                                <span th:text="${mensaje}"
+                                      style="color:red">Error en nombre</span>
+                            </div>
                         </div>
-                         
-                       
-                        
+
+
                         <br/>
-                          <div class="row"> 
-                            <div class="col" >
-                               <div class="form-floating  ">
-                                  <input type="password"  class="form-control" th:id="password"th:name="Password" placeHolder="Password" th:field="*{password}">
-                                  <label >Password</label>
-                              </div><span th:if="${#fields.hasErrors('password')}" th:errors="*{password}">Error en password</span>
-                           </div>
-                              <label th:if="${usuario.username !=null}" style="color:green" th:text="'si desea conservar el password deje este campo vacío'"></label>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-floating  ">
+                                    <input type="password" class="form-control" th:id="password" th:name="Password"
+                                           placeHolder="Password" th:field="*{password}">
+                                    <label>Password</label>
+                                </div>
+                                <span th:if="${#fields.hasErrors('password')}"
+                                      th:errors="*{password}">Error en password</span>
+                            </div>
+                            <label th:if="${usuario.username !=null}" style="color:green"
+                                   th:text="'Si desea conservar el password deje este campo vacío. Si desea cambiarlo, ingrese aquí el nuevo valor'"></label>
                         </div>
-                        
+
 
                         <br/>
                         <br/>
-                         <div class="card">
-                             <div class="card-header">
-                                 Rol del usuario
-                             </div>
-                             <div class="card-body">
-                                 <label for="rol1">Administrador</label>
-                                 <input type="radio" id="rol1" name="rolRadio" th:value="ROLE_ADMIN" th:checked="${usuario.rol != null and usuario.rol.nombre == 'ROLE_ADMIN'}" />
-                                 <br/>
-                                 <label for="rol2">Operador</label>
-                                 <input type="radio" id="rol2" name="rolRadio" th:value="ROLE_OP" th:checked="${usuario.rol == null ? true : usuario.rol.nombre == 'ROLE_OP'}" />
-                             </div>
-                         </div>
-                        <br/>
-                         <div class="form-floating  ">
-                             <input type="text"  class="form-control" th:id="nombreApellido"th:name="nombreApellido" placeHolder="nombre y apellido" th:field="*{nombreApellido}">
-                             <label >Nombre y apellido</label>
-                         </div>
-                        <br/><div class="form-floating  ">
-                             <input type="number"  class="form-control" th:id="telefono"th:name="telefono" placeHolder="Teléfono" th:field="*{telefono}">
-                             <label >Teléfono</label>
-                         </div>
-                        <br/><div class="form-floating  ">
-                             <input type="text"  class="form-control" th:id="observacion"th:name="observacion" placeHolder="Observación" th:field="*{observacion}">
-                             <label >Observación</label>
-                         </div>
-                        <br/>
-                     </div> 
+                        <div class="card">
+                            <div class="card-header">
+                                Rol del usuario
+                            </div>
+                            <div class="card-body">
+                                <label for="rol1">Administrador</label>
+                                <input type="radio" id="rol1" name="rolRadio" th:value="ROLE_ADMIN"
+                                       th:checked="${usuario.rol != null and usuario.rol.nombre == 'ROLE_ADMIN'}"/>
+                                <br/>
+                                <label for="rol2">Operador</label>
+                                <input type="radio" id="rol2" name="rolRadio" th:value="ROLE_OP"
+                                       th:checked="${usuario.rol == null ? true : usuario.rol.nombre == 'ROLE_OP'}"/>
+                            </div>
                         </div>
-                        <div class="col-3"></div>
-                     </div> 
-                    <div class="row ">
-                     <div class="col "></div >
-                    <div class="col ">
+                        <br/>
+                        <div class="form-floating  ">
+                            <input type="text" class="form-control" th:id="nombreApellido" th:name="nombreApellido"
+                                   placeHolder="nombre y apellido" th:field="*{nombreApellido}">
+                            <label>Nombre y apellido</label>
+                        </div>
+                        <br/>
+                        <div class="form-floating  ">
+                            <input type="number" class="form-control" th:id="telefono" th:name="telefono"
+                                   placeHolder="Teléfono" th:field="*{telefono}">
+                            <label>Teléfono</label>
+                        </div>
+                        <br/>
+                        <div class="form-floating  ">
+                            <input type="text" class="form-control" th:id="observacion" th:name="observacion"
+                                   placeHolder="Observación" th:field="*{observacion}">
+                            <label>Observación</label>
+                        </div>
+                        <br/>
+                    </div>
+                </div>
+                <div class="col-3"></div>
+            </div>
+            <div class="row ">
+                <div class="col "></div>
+                <div class="col ">
 
-                        <input th:if="${usuario.username ==null}" type="submit" value="Guardar" class="btn btn-primary"/>
-                        <input th:if="${usuario.username !=null}" type="submit" value="Modificar" class="btn btn-primary"/>
-                        <a th:href="@{/gestionUsuarios}" th:text="regresar" class="btn btn-primary"></a>
-                      </div > 
-                      <div class="col "> </div >
-                    </div >    
-                </form>
-            </div> 
-        </div>
-    </body>
+                    <input th:if="${usuario.username ==null}" type="submit" value="Guardar" class="btn btn-primary"/>
+                    <input th:if="${usuario.username !=null}" type="submit" value="Modificar" class="btn btn-primary"/>
+                    <a th:href="@{/gestionUsuarios}" th:text="regresar" class="btn btn-primary"></a>
+                </div>
+                <div class="col "></div>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
 </html>
 

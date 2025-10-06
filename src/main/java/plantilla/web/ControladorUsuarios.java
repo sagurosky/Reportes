@@ -78,6 +78,7 @@ public class ControladorUsuarios {
 
     @GetMapping("/editarUsuario/{idUsuario}")
     public String editarUsuario(@PathVariable("idUsuario") Long idUsuario, Model model) {
+
         Usuario usuario = usuarioDao.findById(idUsuario).orElse(null);
         if (usuario != null) {
             usuario.setPassword(""); // Se envía vacío para que el usuario decida si lo cambia
@@ -89,6 +90,7 @@ public class ControladorUsuarios {
 
     @PostMapping("/guardarUsuarioEditado")
     public String guardarUsuarioEditado(
+            Model model,
             @RequestParam("rolRadio") String rolRadio,
             @ModelAttribute("usuario") Usuario usuarioReq,
             Errors errores) {
@@ -97,6 +99,13 @@ public class ControladorUsuarios {
 
         if (usuarioOriginal == null) {
             return "redirect:/gestionUsuarios";
+        }
+        if (usuarioOriginal.getIdUsuario() == 1 || usuarioOriginal.getUsername().equals("admin")) {
+            log.info("pp");
+            model.addAttribute("usuario", usuarioOriginal);
+            model.addAttribute("rolRadio", usuarioOriginal.getRol().getNombre());
+            model.addAttribute("mensaje", "no se puede editar el superusuario");
+            return "crearUsuario";
         }
 
         usuarioOriginal.setUsername(usuarioReq.getUsername());
@@ -116,12 +125,19 @@ public class ControladorUsuarios {
     }
 
     @GetMapping("/eliminarUsuario/{idUsuario}")
-    public String eliminarUsuario(@PathVariable("idUsuario") Long idUsuario) {
+    public String eliminarUsuario(@PathVariable("idUsuario") Long idUsuario, Model model) {
         Usuario usuario = usuarioDao.findById(idUsuario).orElse(null);
+
+        if (usuario.getIdUsuario() == 1 || usuario.getUsername().equals("admin")) {
+            log.info("pp");
+            model.addAttribute("mensaje", "no se puede inhabilitar el superusuario");
+            return "redirect:/gestionUsuarios";
+        }
         if (usuario != null) {
             usuario.setInhabilitado(Boolean.TRUE);
             usuarioDao.save(usuario);
         }
+
         return "redirect:/gestionUsuarios";
     }
 

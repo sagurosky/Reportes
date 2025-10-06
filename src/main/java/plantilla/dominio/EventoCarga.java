@@ -19,4 +19,8 @@ public class EventoCarga {
     private LocalDateTime fecha;
     private String usuario;
     private String modulo; // "stock", "pedidos", "caja", etc.
+    private String estado;
+    private String observaciones;
+    private Long idStockInicial;
+    private Long idStockFinal;
 }

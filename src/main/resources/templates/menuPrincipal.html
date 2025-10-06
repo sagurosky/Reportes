@@ -56,6 +56,33 @@
     .hidden {
         display: none;
     }
+    .btn-eventos {
+        background-color: #1e88e5;
+        color: white;
+    }
+
+
+    /* Botones principales */
+.btn-stock { background-color: #007b8a; color: white; }
+.btn-caja { background-color: #ff9800; color: white; }
+.btn-pedido { background-color: #7e57c2; color: white; }
+
+/* Botones secundarios por módulo */
+.stock-1 { background-color: #0097a7; color: white; }
+.stock-2 { background-color: #00bcd4; color: white; }
+.stock-3 { background-color: #80deea; color: black; }
+.stock-4 { background-color: #b2ebf2; color: black; }
+
+.caja-1 { background-color: #ffa726; color: black; }
+.caja-2 { background-color: #ffb74d; color: black; }
+.caja-3 { background-color: #ffcc80; color: black; }
+.caja-4 { background-color: #ffe0b2; color: black; }
+
+.pedido-1 { background-color: #9575cd; color: white; }
+.pedido-2 { background-color: #b39ddb; color: white; }
+.pedido-3 { background-color: #d1c4e9; color: black; }
+.pedido-4 { background-color: #ede7f6; color: black; }
+
 
 </style>
 
@@ -79,6 +106,13 @@
                     Gestión de Sucursales
                 </a>
             </div>
+            <div>
+                <a th:href="@{/eventosCarga/}" class="btn btn-eventos btn-menu">
+                    <i class="bi bi-clipboard-data"></i>
+                    Eventos de Carga
+                </a>
+            </div>
+
             <!--
             <div>
                 <a href="#" class="btn btn-warning btn-menu">
@@ -102,15 +136,15 @@
 
         <!-- Botones principales (siempre visibles) -->
         <div id="main-buttons" class="button-group">
-            <button class="btn btn-info btn-menu" onclick="showSecondaryButtons('stock')">
+            <button class="btn btn-stock btn-menu" onclick="showSecondaryButtons('stock')">
                 <i class="bi bi-boxes"></i>
                 Stock
             </button>
-            <button class="btn btn-info btn-menu" onclick="showSecondaryButtons('caja')">
+            <button class="btn btn-caja btn-menu" onclick="showSecondaryButtons('caja')">
                 <i class="bi bi-cash-coin"></i>
                 Caja
             </button>
-            <button class="btn btn-info btn-menu" onclick="showSecondaryButtons('pedido')">
+            <button class="btn btn-pedido btn-menu" onclick="showSecondaryButtons('pedido')">
                 <i class="bi bi-cart-check"></i>
                 Pedido
             </button>
@@ -171,22 +205,40 @@
         const diferenciasBtn = document.getElementById('btn-diferencias');
         const reportesBtn = document.getElementById('btn-reportes');
 
+        // Limpiar clases anteriores
+        [cargarBtn, faltantesBtn, diferenciasBtn, reportesBtn].forEach(btn => {
+            btn.className = 'btn btn-menu'; // base
+        });
+
+
         // Aquí defines los endpoints según el contexto
         if (context === 'stock') {
-            cargarBtn.href = '/cargarArchivos/stock';
-            faltantesBtn.href = '/faltantes/stock';
-            diferenciasBtn.href = '/diferencias/stock';
-            reportesBtn.href = '/reportes/stock';
+            cargarBtn.classList.add('stock-1');
+            faltantesBtn.classList.add('stock-2');
+            diferenciasBtn.classList.add('stock-3');
+            reportesBtn.classList.add('stock-4');
+            cargarBtn.href = '/cargarArchivos/stock?color=stock-1';
+            faltantesBtn.href = '/faltantes/stock?color=stock-2';
+            diferenciasBtn.href = '/diferencias/stock?color=stock-3';
+            reportesBtn.href = '/reportes/stock?color=stock-4';
         } else if (context === 'caja') {
-            cargarBtn.href = '/cargarArchivos/caja';
-            faltantesBtn.href = '/faltantes/caja';
-            diferenciasBtn.href = '/diferencias/caja';
-            reportesBtn.href = '/reportes/caja';
+            cargarBtn.classList.add('caja-1');
+            faltantesBtn.classList.add('caja-2');
+            diferenciasBtn.classList.add('caja-3');
+            reportesBtn.classList.add('caja-4');
+            cargarBtn.href = '/cargarArchivos/caja?color=caja-1';
+            faltantesBtn.href = '/faltantes/caja?color=caja-2';
+            diferenciasBtn.href = '/diferencias/caja?color=caja-3';
+            reportesBtn.href = '/reportes/caja?color=caja-4';
         } else if (context === 'pedido') {
-            cargarBtn.href = '/cargarArchivos/pedido';
-            faltantesBtn.href = '/faltantes/pedido';
-            diferenciasBtn.href = '/diferencias/pedido';
-            reportesBtn.href = '/reportes/pedido';
+            cargarBtn.classList.add('pedido-1');
+            faltantesBtn.classList.add('pedido-2');
+            diferenciasBtn.classList.add('pedido-3');
+            reportesBtn.classList.add('pedido-4');
+            cargarBtn.href = '/cargarArchivos/pedido?color=pedido-1';
+            faltantesBtn.href = '/faltantes/pedido?color=pedido-2';
+            diferenciasBtn.href = '/diferencias/pedido?color=pedido-3';
+            reportesBtn.href = '/reportes/pedido?color=pedido-4';
         }
     }
 

@@ -55,10 +55,13 @@ public class Controlador {
 
     // Vista carga de archivos
     @GetMapping("/cargarArchivos/{nombre}")
-    public String cargaArchivos(@PathVariable("nombre") String nombre, Model model) {
+    public String cargaArchivos(@PathVariable("nombre") String nombre,
+                                @RequestParam(name = "color", required = false, defaultValue = "color-stock") String color,
+                                Model model) {
         model.addAttribute("message1", "");
         model.addAttribute("nombre", nombre);
         model.addAttribute("pantalla", "Carga de archivos de " + nombre);
+        model.addAttribute("colorClase", color);
         // Solo sucursales activas
         List<Sucursal> sucursales = sucursalRepository.findByInhabilitadoFalse();
         model.addAttribute("sucursales", sucursales);

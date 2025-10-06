@@ -13,6 +13,7 @@ plantilla/servicio/UsuarioService.class
 plantilla/util/EncriptarPassword.class
 plantilla/repositorios/EventoCargaRepository.class
 plantilla/servicio/Servicio.class
+plantilla/web/EventoCargaController.class
 plantilla/dominio/Rol.class
 plantilla/repositorios/ProductoRepository.class
 plantilla/web/InicializadorAdmin.class

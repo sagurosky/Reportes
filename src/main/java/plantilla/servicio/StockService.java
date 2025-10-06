@@ -51,9 +51,9 @@ public class StockService {
                 });
     }
 
-    @Transactional
+    //    @Transactional
     public void procesarRotacion(Sheet sheet, String nombreArchivo, Sucursal sucursal) {
-        log.info("🚀 Iniciando procesamiento de rotación para archivo: {}", nombreArchivo, " sucursal: " + sucursal.getNombre());
+        log.info("🚀 Iniciando procesamiento de rotación para archivo: {} sucursal: {}", nombreArchivo, sucursal.getNombre());
 
         // 📌 Registrar evento
         EventoCarga evento = new EventoCarga();
@@ -61,14 +61,22 @@ public class StockService {
         evento.setFecha(LocalDateTime.now());
         evento.setUsuario("sistema"); // TODO: usuario autenticado
         evento.setModulo("stock");
+        evento.setEstado("iniciado");
         eventoCargaRepository.save(evento);
 
-
         int procesados = 0;
-        for (Row row : sheet) {
-            if (row.getRowNum() == 0) continue;
+        Long stockInicial = null;
+        Long stockFinal = null;
 
-            try {
+        try {
+            for (Row row : sheet) {
+                if (row.getRowNum() == 0) continue;
+
+                // Si encontramos un código ficticio, tiramos error
+                if ("FORZAR_ERROR".equalsIgnoreCase(safeStringCell(row, 0))) {
+                    throw new IllegalStateException("Código inválido detectado en fila " + row.getRowNum());
+                }
+                
                 String codigo = safeStringCell(row, 0);
                 Integer acant = safeIntCell(row, 1);
                 Integer acantmin = safeIntCell(row, 2);
@@ -82,17 +90,8 @@ public class StockService {
 
                 String codigoUnico = codigo + fcolo;
 
-                // Guardar stock con sucursal
-                Stock stock = new Stock();
-                stock.setSucursal(sucursal);
-                stock.setCantidadActual(acant);
-                stock.setCantidadMin(acantmin);
-                stock.setCantidadFisica(fcant);
-                stock.setFechaCarga(LocalDateTime.now());
-                stockRepository.save(stock);
-
-                // Producto asociado
-                Producto producto = productoRepository.findByCodigoUnicoAndStock(codigoUnico, stock)
+                // 🔍 Buscar producto SOLO por codigoUnico
+                Producto producto = productoRepository.findByCodigoUnico(codigoUnico)
                         .orElseGet(() -> {
                             Producto nuevo = new Producto();
                             nuevo.setCodigo(codigo);
@@ -101,15 +100,42 @@ public class StockService {
                             nuevo.setColorCod(fcolo);
                             nuevo.setTalle(talle);
                             nuevo.setCodigoUnico(codigoUnico);
-                            nuevo.setStock(stock);
                             return productoRepository.save(nuevo);
                         });
 
+                // 📌 Crear nuevo registro de stock
+                Stock stock = new Stock();
+                stock.setProducto(producto);
+                stock.setSucursal(sucursal);
+                stock.setCantidadActual(acant);
+                stock.setCantidadMin(acantmin);
+                stock.setCantidadFisica(fcant);
+                stock.setFechaCarga(LocalDateTime.now());
+                stock = stockRepository.save(stock);
+
+                if (stockInicial == null) {
+                    stockInicial = stock.getId();
+                }
+                stockFinal = stock.getId();
+
+
                 procesados++;
-            } catch (Exception ex) {
-                log.error("❌ Error en fila {}: {}", row.getRowNum(), ex.getMessage());
             }
+            evento.setEstado("completado");
+            evento.setIdStockInicial(stockInicial);
+            evento.setIdStockFinal(stockFinal);
+            eventoCargaRepository.save(evento);
+        } catch (Exception ex) {
+            evento.setEstado("fallido");
+            evento.setIdStockInicial(stockInicial);
+            evento.setIdStockFinal(stockFinal);
+            evento.setObservaciones(ex.getMessage());
+            eventoCargaRepository.save(evento);
+            log.error("❌ Error en id {}: {}", stockFinal, ex.getMessage());
+            throw ex;
+
         }
+
 
         log.info("✅ Procesados {} registros para sucursal {}", procesados, sucursal.getNombre());
     }
