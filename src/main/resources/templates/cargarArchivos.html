@@ -75,13 +75,26 @@
         </div>
         <div class="card-body">
 
-            <!-- Selector de sucursal -->
-            <div class="mb-4">
-                <label class="form-label fw-semibold">Seleccione la sucursal:</label>
-                <select id="sucursalSelect" class="form-select">
-                    <option value="">-- Seleccione una sucursal --</option>
-                    <option th:each="s : ${sucursales}" th:value="${s.id}" th:text="${s.nombre}"></option>
-                </select>
+            <div class="mb-4 row">
+                <div class="col-md-6">
+                    <label for="sucursalSelect" class="form-label fw-semibold">Seleccione la sucursal:</label>
+                    <select id="sucursalSelect" class="form-select">
+                        <option value="">-- Seleccione una sucursal --</option>
+                        <option th:each="s : ${sucursales}" th:value="${s.id}" th:text="${s.nombre}"></option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="fechaStock" class="form-label fw-semibold">Fecha del stock:</label>
+                    <input type="date"
+                           id="fechaStock"
+                           class="form-control"
+                           th:value="${#dates.format(ahora, 'yyyy-MM-dd')}"
+                           th:attr="max=${#dates.format(ahora, 'yyyy-MM-dd')}">
+                    <div id="fechaError" class="text-danger mt-1" style="display: none;">
+                        La fecha no puede ser futura.
+                    </div>
+                </div>
             </div>
 
             <!-- Dropzone -->
@@ -106,6 +119,22 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
 <script>
+    function validarFechaStock() {
+        const fechaInput = document.getElementById("fechaStock");
+        const fechaSeleccionada = new Date(fechaInput.value);
+        const hoy = new Date();
+        // Normalizamos ambas fechas a medianoche para comparar solo la fecha
+        hoy.setHours(0, 0, 0, 0);
+        fechaSeleccionada.setHours(0, 0, 0, 0);
+
+        if (fechaSeleccionada > hoy) {
+            document.getElementById("fechaError").style.display = "block";
+            return false;
+        } else {
+            document.getElementById("fechaError").style.display = "none";
+            return true;
+        }
+    }
     Dropzone.autoDiscover = false;
 
     const dz = new Dropzone("#miDropzone", {
@@ -129,6 +158,11 @@
 
           if (!sucursalId) {
             Swal.fire("⚠️ Atención", "Debe seleccionar una sucursal antes de subir archivos", "warning");
+            this.removeFile(file);
+            return;
+          }
+          if (!validarFechaStock()) {
+            Swal.fire("⚠️ Atención", "La fecha del stock no puede ser futura.", "warning");
             this.removeFile(file);
             return;
           }
@@ -167,7 +201,9 @@
         // Adjuntar sucursalId en el envío
         this.on("sending", (file, xhr, formData) => {
           const sucursalId = document.getElementById("sucursalSelect").value;
+          const fechaStock = document.getElementById("fechaStock").value;
           formData.append("sucursalId", sucursalId);
+          formData.append("fechaStock", fechaStock);
         });
 
         // ✅ éxito

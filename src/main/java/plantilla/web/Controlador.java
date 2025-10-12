@@ -4,6 +4,10 @@ package plantilla.web;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +19,7 @@ import org.apache.poi.*;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -65,13 +70,21 @@ public class Controlador {
         // Solo sucursales activas
         List<Sucursal> sucursales = sucursalRepository.findByInhabilitadoFalse();
         model.addAttribute("sucursales", sucursales);
+
+        //DMS conversiones por error en thymeleaf
+        ZonedDateTime ahoraZona = ZonedDateTime.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+        Date ahora = Date.from(ahoraZona.toInstant());
+        model.addAttribute("ahora", ahora);
         return "cargarArchivos";
     }
 
     // Procesar Excel
     @PostMapping("/subirArchivosExcel")
     @ResponseBody
-    public ResponseEntity<?> subirArchivo(@RequestParam("file") MultipartFile file, @RequestParam("sucursalId") Long sucursalId) {
+    public ResponseEntity<?> subirArchivo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("sucursalId") Long sucursalId,
+            @RequestParam("fechaStock") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaStock) {
         log.info("📥 Recibido archivo: {}", file.getOriginalFilename());
 
         try (Workbook workbook = getWorkbook(file)) {
@@ -93,6 +106,34 @@ public class Controlador {
                 ));
             }
 
+            // ✅ NUEVA VALIDACIÓN: continuidad de fecha
+            Optional<LocalDate> ultimaFechaOpt = eventoCargaRepository.findMaxFechaArchivoBySucursalId(sucursalId);
+            LocalDate fechaEsperada;
+
+            if (ultimaFechaOpt.isPresent()) {
+                fechaEsperada = ultimaFechaOpt.get().plusDays(1);
+                if (!fechaStock.equals(fechaEsperada)) {
+                    String mensaje = String.format(
+                            "❌ La fecha del stock debe ser el día siguiente a la última carga (%s). Fecha recibida: %s",
+                            fechaEsperada, fechaStock
+                    );
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "status", "error",
+                            "mensaje", mensaje
+                    ));
+                }
+            } else {
+                // Primera carga: permitir cualquier fecha ≤ hoy
+                if (fechaStock.isAfter(LocalDate.now())) {
+                    // Esto ya está bloqueado por el frontend, pero por seguridad:
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "status", "error",
+                            "mensaje", "La fecha no puede ser futura."
+                    ));
+                }
+                // ✅ OK: primera carga válida
+            }
+
 
             if (sheet == null || sheet.getPhysicalNumberOfRows() <= 1) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -112,7 +153,7 @@ public class Controlador {
             }
             Sucursal sucursal = optSucursal.get();
             if (nombre.contains("rotacion")) {
-                stockService.procesarRotacion(sheet, nombreArchivo, sucursal);
+                stockService.procesarRotacion(sheet, nombreArchivo, sucursal, fechaStock);
                 return ResponseEntity.ok(Map.of(
                         "status", "ok",
                         "mensaje", "✅ Procesado como Rotación: " + nombre + " para sucursal: " + sucursal.getNombre()

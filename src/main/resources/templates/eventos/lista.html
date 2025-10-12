@@ -25,7 +25,9 @@
                 <thead class="table-primary">
                 <tr>
                     <th>Archivo</th>
-                    <th>Fecha</th>
+                    <th>Sucursal</th>
+                    <th>Fecha de carga</th>
+                    <th>Fecha de archivo</th>
                     <th>Usuario</th>
                     <th>Módulo</th>
                     <th>Estado</th>
@@ -37,7 +39,9 @@
                 <tbody>
                 <tr th:each="e : ${eventos}">
                     <td th:text="${e.nombreArchivo}"></td>
+                    <td th:text="${e.sucursal.nombre}"></td>
                     <td th:text="${#temporals.format(e.fecha, 'dd/MM/yyyy HH:mm')}"></td>
+                    <td th:text="${#temporals.format(e.fechaArchivo, 'dd/MM/yyyy')}"></td>
                     <td th:text="${e.usuario}"></td>
                     <td>
                         <span class="badge bg-info text-dark" th:text="${e.modulo}"></span>
@@ -63,7 +67,7 @@
     $(document).ready(function() {
         $('#tablaEventos').DataTable({
             language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
             },
             order: [[1, 'desc']], // ordenar por fecha descendente
             pageLength: 20,

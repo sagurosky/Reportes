@@ -4,6 +4,7 @@ package plantilla.dominio;
 import lombok.Data;
 
 import javax.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,9 @@ public class Stock {
     @ManyToOne
     @JoinColumn(name = "producto_id", nullable = false)
     private Producto producto;
+
+    // 📅 Nueva columna para la fecha del stock
+    private LocalDate fechaStock;
 }
 
 

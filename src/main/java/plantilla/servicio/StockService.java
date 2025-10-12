@@ -6,7 +6,6 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import plantilla.dominio.EventoCarga;
 import plantilla.dominio.Producto;
 import plantilla.dominio.Stock;
@@ -15,8 +14,13 @@ import plantilla.repositorios.EventoCargaRepository;
 import plantilla.repositorios.ProductoRepository;
 import plantilla.repositorios.StockRepository;
 import plantilla.repositorios.SucursalRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import plantilla.util.TiempoUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -52,14 +56,18 @@ public class StockService {
     }
 
     //    @Transactional
-    public void procesarRotacion(Sheet sheet, String nombreArchivo, Sucursal sucursal) {
+    public void procesarRotacion(Sheet sheet, String nombreArchivo, Sucursal sucursal, LocalDate fechaStock) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String usuarioActual = auth != null ? auth.getName() : "sistema";
         log.info("🚀 Iniciando procesamiento de rotación para archivo: {} sucursal: {}", nombreArchivo, sucursal.getNombre());
 
         // 📌 Registrar evento
         EventoCarga evento = new EventoCarga();
         evento.setNombreArchivo(nombreArchivo);
-        evento.setFecha(LocalDateTime.now());
-        evento.setUsuario("sistema"); // TODO: usuario autenticado
+        evento.setSucursal(sucursal);
+        evento.setFecha(TiempoUtils.ahora());
+        evento.setFechaArchivo(fechaStock);
+        evento.setUsuario(usuarioActual);
         evento.setModulo("stock");
         evento.setEstado("iniciado");
         eventoCargaRepository.save(evento);
@@ -76,7 +84,7 @@ public class StockService {
                 if ("FORZAR_ERROR".equalsIgnoreCase(safeStringCell(row, 0))) {
                     throw new IllegalStateException("Código inválido detectado en fila " + row.getRowNum());
                 }
-                
+
                 String codigo = safeStringCell(row, 0);
                 Integer acant = safeIntCell(row, 1);
                 Integer acantmin = safeIntCell(row, 2);
@@ -103,24 +111,44 @@ public class StockService {
                             return productoRepository.save(nuevo);
                         });
 
-                // 📌 Crear nuevo registro de stock
-                Stock stock = new Stock();
-                stock.setProducto(producto);
-                stock.setSucursal(sucursal);
-                stock.setCantidadActual(acant);
-                stock.setCantidadMin(acantmin);
-                stock.setCantidadFisica(fcant);
-                stock.setFechaCarga(LocalDateTime.now());
-                stock = stockRepository.save(stock);
+                // 🔍 Buscar último registro existente
+                Optional<Stock> ultimoOpt = stockRepository.findUltimoStockPorProductoYSucursal(codigoUnico, sucursal);
 
-                if (stockInicial == null) {
-                    stockInicial = stock.getId();
+                boolean debeGuardar = true;
+
+                if (ultimoOpt.isPresent()) {
+                    Stock ultimo = ultimoOpt.get();
+                    debeGuardar = !Objects.equals(ultimo.getCantidadActual(), acant)
+                            || !Objects.equals(ultimo.getCantidadMin(), acantmin)
+                            || !Objects.equals(ultimo.getCantidadFisica(), fcant);
                 }
-                stockFinal = stock.getId();
 
 
-                procesados++;
+                // 📌 Crear nuevo registro de stock
+                // DMS lo guarda solo si es distinto acant, fcant o cantidad minima respecto del ultimo registro (segun fecha)
+                if (debeGuardar) {
+                    Stock stock = new Stock();
+                    stock.setProducto(producto);
+                    stock.setSucursal(sucursal);
+                    stock.setCantidadActual(acant);
+                    stock.setCantidadMin(acantmin);
+                    stock.setCantidadFisica(fcant);
+                    stock.setFechaCarga(TiempoUtils.ahora());
+                    stock.setFechaStock(fechaStock);
+                    stock = stockRepository.save(stock);
+
+                    if (stockInicial == null) {
+                        stockInicial = stock.getId();
+                    }
+                    stockFinal = stock.getId();
+                    procesados++;
+
+                }
+
             }
+            log.info("✅ Procesados {} registros nuevos (omitidos {} sin cambios) para sucursal {}",
+                    procesados, (sheet.getLastRowNum() - procesados), sucursal.getNombre());
+            
             evento.setEstado("completado");
             evento.setIdStockInicial(stockInicial);
             evento.setIdStockFinal(stockFinal);
