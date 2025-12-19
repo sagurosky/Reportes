@@ -22,16 +22,16 @@ public class SucursalService {
         return sucursalRepository.findAll();
     }
 
-    public boolean existePorNombre(String nombre) {
-        return sucursalRepository.existsByNombre(nombre);
-    }
+//    public boolean existePorNombre(String nombre) {
+//        return sucursalRepository.existsByNombre(nombre);
+//    }
 
     public Sucursal buscarPorNombre(String nombre) {
         return sucursalRepository.findByNombreIgnoreCase(nombre).orElse(null);
     }
 
     public Sucursal guardar(Sucursal sucursal) {
-        if (sucursal.getInhabilitado() == null) {
+        if (!sucursal.isInhabilitado()) {
             sucursal.setInhabilitado(false);
         }
         return sucursalRepository.save(sucursal);

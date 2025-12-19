@@ -60,13 +60,13 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         WebMvcConfigurer.super.addResourceHandlers(registry); //To change body of generated methods, choose Tools | Templates.
-//    registry.addResourceHandler("/recursos/**")
-//            .addResourceLocations("file:/C:/AppReportes/recursos/");
+    registry.addResourceHandler("/recursos/**")
+            .addResourceLocations("file:/C:/temporal/");
 
         //DMS comentado para aws, habilitarlo en local
 
-        registry.addResourceHandler("/recursos/**")
-                .addResourceLocations("file:/home/ubuntu/recursos/");
+//        registry.addResourceHandler("/recursos/**")
+//                .addResourceLocations("file:/home/ubuntu/recursos/");
 
 
 //        registry.addResourceHandler("/recursos/**")

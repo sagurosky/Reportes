@@ -4,20 +4,18 @@ package plantilla.dominio;
 import lombok.Data;
 
 import javax.persistence.*;
-
 @Data
 @Entity
 @Table(name = "sucursales")
 public class Sucursal {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long idDeposito;   // viene del archivo (NO AUTO)
 
-    private String nombre;
-    private String direccion;
-    private String mail;
-    private String provincia;
-    private String pais;
-    private Boolean inhabilitado;
+    @Column(unique = true)
+    private String codDeposito;
+
+    private String nombre;     // “Depósito” en el archivo
+
+    private boolean inhabilitado = false;  // opcional
 }

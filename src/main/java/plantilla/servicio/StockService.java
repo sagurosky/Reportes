@@ -6,22 +6,30 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import plantilla.dominio.EventoCarga;
 import plantilla.dominio.Producto;
-import plantilla.dominio.Stock;
+
+import plantilla.dominio.StockHistorico;
 import plantilla.dominio.Sucursal;
 import plantilla.repositorios.EventoCargaRepository;
 import plantilla.repositorios.ProductoRepository;
-import plantilla.repositorios.StockRepository;
+import plantilla.repositorios.StockHistoricoRepository;
 import plantilla.repositorios.SucursalRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import plantilla.util.TiempoUtils;
+import plantilla.util.Validadores;
 
+
+import javax.persistence.PersistenceContext;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+
+import static plantilla.util.Validadores.safeStringCell;
 
 @Service
 @Slf4j
@@ -31,7 +39,7 @@ public class StockService {
     private ProductoRepository productoRepository;
 
     @Autowired
-    private StockRepository stockRepository;
+    private StockHistoricoRepository stockHistoricoRepository;
 
     @Autowired
     private EventoCargaRepository eventoCargaRepository;
@@ -39,167 +47,159 @@ public class StockService {
     @Autowired
     private SucursalRepository sucursalRepository;
 
+    @Autowired
+    private ResultadoBloqueService resultadoBloqueService;
+
     private static final String SUCURSAL_DEFAULT = "Default";
 
-    private Sucursal obtenerSucursalDefault() {
-        return sucursalRepository.findByNombre(SUCURSAL_DEFAULT)
-                .orElseGet(() -> {
-                    Sucursal nueva = new Sucursal();
-                    nueva.setNombre(SUCURSAL_DEFAULT);
-                    nueva.setDireccion("N/A");
-                    nueva.setMail("default@sistema.com");
-                    nueva.setProvincia("N/A");
-                    nueva.setPais("N/A");
-                    nueva.setInhabilitado(Boolean.FALSE);
-                    return sucursalRepository.save(nueva);
-                });
-    }
+    public static final int IDX_DEPOSITO=0;
+    public static final int IDX_COD_DEPOSITO=1;
+    public static final int IDX_ID_DEPOSITO=2;
+    public static final int IDX_MASTER_ID=3;
+    public static final int IDX_SKU=4;
+    public static final int IDX_COLOR=5;
+    public static final int IDX_DESCRIPCION=6;
+    public static final int IDX_AMBIENTE=7;
+    public static final int IDX_FAMILIA=8;
+    public static final int IDX_NIVEL3=9;
+    public static final int IDX_NIVEL4=10;
+    public static final int IDX_CANTIDAD=11;
+
+    public static final int BLOQUE_SIZE = 500;
+
+
+
 
     //    @Transactional
-    public void procesarRotacion(Sheet sheet, String nombreArchivo, Sucursal sucursal, LocalDate fechaStock) {
+    public void procesarStock(
+            Sheet sheet,
+            String nombreArchivo,
+            LocalDate fechaStock) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String usuarioActual = auth != null ? auth.getName() : "sistema";
-        log.info("🚀 Iniciando procesamiento de rotación para archivo: {} sucursal: {}", nombreArchivo, sucursal.getNombre());
 
-        // 📌 Registrar evento
+        // ==========================
+        // Resolver sucursal
+        // ==========================
+        Row firstDataRow = obtenerPrimeraFilaDatos(sheet);
+
+        Long idDeposito = Validadores.safeLongCell(firstDataRow, IDX_ID_DEPOSITO);
+        String codDeposito = Validadores.safeStringCell(firstDataRow, IDX_COD_DEPOSITO);
+        String nombreDeposito = Validadores.safeStringCell(firstDataRow, IDX_DEPOSITO);
+
+        Sucursal sucursal = resolverSucursal(
+                idDeposito, codDeposito, nombreDeposito, nombreArchivo
+        );
+
+        // ==========================
+        // Crear evento
+        // ==========================
         EventoCarga evento = new EventoCarga();
         evento.setNombreArchivo(nombreArchivo);
         evento.setSucursal(sucursal);
         evento.setFecha(TiempoUtils.ahora());
         evento.setFechaArchivo(fechaStock);
         evento.setUsuario(usuarioActual);
-        evento.setModulo("stock");
-        evento.setEstado("iniciado");
-        eventoCargaRepository.save(evento);
+        evento.setModulo("Stock");
+        evento.setEstado("EN_PROCESO");
 
-        int procesados = 0;
+        evento = eventoCargaRepository.save(evento);
+
         Long stockInicial = null;
         Long stockFinal = null;
+
+        // ==========================
+        // Procesamiento por bloques
+        // ==========================
+        List<Row> bloque = new ArrayList<>(BLOQUE_SIZE);
 
         try {
             for (Row row : sheet) {
                 if (row.getRowNum() == 0) continue;
 
-                // Si encontramos un código ficticio, tiramos error
-                if ("FORZAR_ERROR".equalsIgnoreCase(safeStringCell(row, 0))) {
-                    throw new IllegalStateException("Código inválido detectado en fila " + row.getRowNum());
-                }
+                bloque.add(row);
 
-                String codigo = safeStringCell(row, 0);
-                Integer acant = safeIntCell(row, 1);
-                Integer acantmin = safeIntCell(row, 2);
-                String descripcion = safeStringCell(row, 3);
-                String fcolo = safeStringCell(row, 5);
-                String talle = safeStringCell(row, 6);
-                Integer fcant = safeIntCell(row, 7);
-                String color = safeStringCell(row, 8);
-
-                if (codigo == null || fcolo == null) continue;
-
-                String codigoUnico = codigo + fcolo;
-
-                // 🔍 Buscar producto SOLO por codigoUnico
-                Producto producto = productoRepository.findByCodigoUnico(codigoUnico)
-                        .orElseGet(() -> {
-                            Producto nuevo = new Producto();
-                            nuevo.setCodigo(codigo);
-                            nuevo.setDescripcion(descripcion);
-                            nuevo.setColor(color);
-                            nuevo.setColorCod(fcolo);
-                            nuevo.setTalle(talle);
-                            nuevo.setCodigoUnico(codigoUnico);
-                            return productoRepository.save(nuevo);
-                        });
-
-                // 🔍 Buscar último registro existente
-                Optional<Stock> ultimoOpt = stockRepository.findUltimoStockPorProductoYSucursal(codigoUnico, sucursal);
-
-                boolean debeGuardar = true;
-
-                if (ultimoOpt.isPresent()) {
-                    Stock ultimo = ultimoOpt.get();
-                    debeGuardar = !Objects.equals(ultimo.getCantidadActual(), acant)
-                            || !Objects.equals(ultimo.getCantidadMin(), acantmin)
-                            || !Objects.equals(ultimo.getCantidadFisica(), fcant);
-                }
-
-
-                // 📌 Crear nuevo registro de stock
-                // DMS lo guarda solo si es distinto acant, fcant o cantidad minima respecto del ultimo registro (segun fecha)
-                if (debeGuardar) {
-                    Stock stock = new Stock();
-                    stock.setProducto(producto);
-                    stock.setSucursal(sucursal);
-                    stock.setCantidadActual(acant);
-                    stock.setCantidadMin(acantmin);
-                    stock.setCantidadFisica(fcant);
-                    stock.setFechaCarga(TiempoUtils.ahora());
-                    stock.setFechaStock(fechaStock);
-                    stock = stockRepository.save(stock);
+                if (bloque.size() == BLOQUE_SIZE) {
+                    ResultadoBloqueDTO r = resultadoBloqueService.procesarBloque(
+                            bloque, sucursal, fechaStock, evento
+                    );
 
                     if (stockInicial == null) {
-                        stockInicial = stock.getId();
+                        stockInicial = r.getStockInicial();
                     }
-                    stockFinal = stock.getId();
-                    procesados++;
+                    stockFinal = r.getStockFinal();
 
+                    bloque.clear();
                 }
-
             }
-            log.info("✅ Procesados {} registros nuevos (omitidos {} sin cambios) para sucursal {}",
-                    procesados, (sheet.getLastRowNum() - procesados), sucursal.getNombre());
-            
-            evento.setEstado("completado");
+
+            // último bloque incompleto
+            if (!bloque.isEmpty()) {
+                ResultadoBloqueDTO r = resultadoBloqueService.procesarBloque(
+                        bloque, sucursal, fechaStock, evento
+                );
+
+                if (stockInicial == null) {
+                    stockInicial = r.getStockInicial();
+                }
+                stockFinal = r.getStockFinal();
+            }
+
+            evento.setEstado("COMPLETADO");
             evento.setIdStockInicial(stockInicial);
             evento.setIdStockFinal(stockFinal);
             eventoCargaRepository.save(evento);
+
         } catch (Exception ex) {
-            evento.setEstado("fallido");
+            evento.setEstado("FALLIDO");
             evento.setIdStockInicial(stockInicial);
             evento.setIdStockFinal(stockFinal);
             evento.setObservaciones(ex.getMessage());
             eventoCargaRepository.save(evento);
-            log.error("❌ Error en id {}: {}", stockFinal, ex.getMessage());
             throw ex;
-
-        }
-
-
-        log.info("✅ Procesados {} registros para sucursal {}", procesados, sucursal.getNombre());
-    }
-
-
-    // 🔹 Helpers (los mismos que en tu ServicioImpl)
-    private String safeStringCell(Row row, int index) {
-        try {
-            if (row.getCell(index) == null) return null;
-            return switch (row.getCell(index).getCellType()) {
-                case STRING -> row.getCell(index).getStringCellValue().trim();
-                case NUMERIC -> String.valueOf((long) row.getCell(index).getNumericCellValue());
-                case FORMULA -> row.getCell(index).getStringCellValue();
-                default -> null;
-            };
-        } catch (Exception e) {
-            log.warn("⚠️ Error leyendo celda String col {}: {}", index, e.getMessage());
-            return null;
         }
     }
 
-    private Integer safeIntCell(Row row, int index) {
-        try {
-            if (row.getCell(index) == null) return null;
-            return switch (row.getCell(index).getCellType()) {
-                case NUMERIC -> (int) row.getCell(index).getNumericCellValue();
-                case STRING -> {
-                    String val = row.getCell(index).getStringCellValue();
-                    yield val.isBlank() ? null : Integer.parseInt(val.trim());
-                }
-                case FORMULA -> (int) row.getCell(index).getNumericCellValue();
-                default -> null;
-            };
-        } catch (Exception e) {
-            log.warn("⚠️ Error leyendo celda int col {}: {}", index, e.getMessage());
-            return null;
+
+
+
+    private Row obtenerPrimeraFilaDatos(Sheet sheet) {
+        for (Row row : sheet) {
+            if (row.getRowNum() > 0) {
+                return row;
+            }
         }
+        throw new IllegalStateException("El archivo no contiene filas de datos");
+    }
+
+    private Sucursal resolverSucursal(
+            Long idDeposito,
+            String codDeposito,
+            String nombreDeposito,
+            String nombreArchivo) {
+
+        return sucursalRepository.findByIdDeposito(idDeposito)
+                .orElseGet(() -> {
+                    Sucursal nueva = new Sucursal();
+                    nueva.setIdDeposito(idDeposito);
+                    nueva.setCodDeposito(codDeposito);
+                    nueva.setNombre(
+                            nombreDeposito != null
+                                    ? nombreDeposito
+                                    : extraerSucursalDesdeNombreArchivo(nombreArchivo)
+                    );
+                    nueva.setInhabilitado(false);
+                    return sucursalRepository.save(nueva);
+                });
+    }
+
+
+    private String extraerSucursalDesdeNombreArchivo(String nombreArchivo) {
+        String sinExtension = nombreArchivo.replaceFirst("[.][^.]+$", "");
+        int idx = sinExtension.lastIndexOf("_");
+        return idx != -1
+                ? sinExtension.substring(idx + 1).trim()
+                : sinExtension;
     }
 }

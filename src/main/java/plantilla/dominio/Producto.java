@@ -11,19 +11,20 @@ import java.util.List;
 @Entity
 @Table(name = "productos")
 public class Producto {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String codigo;
+    @Column(unique = true, nullable = false)
+    private String sku;           // clave única global
+
+    private String masterId;
     private String descripcion;
     private String color;
-    private String colorCod;
-    private String talle;
 
-    @Column(unique = true)
-    private String codigoUnico;
-
-    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Stock> stocks = new ArrayList<>();
+    private String ambiente;
+    private String familia;
+    private String nivel3;
+    private String nivel4;
 }

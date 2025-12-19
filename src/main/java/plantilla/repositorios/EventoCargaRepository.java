@@ -12,8 +12,12 @@ public interface EventoCargaRepository extends JpaRepository<EventoCarga, Long> 
 
     boolean existsByNombreArchivo(String nombreArchivo);
 
-    @Query("SELECT MAX(e.fechaArchivo) FROM EventoCarga e WHERE e.sucursal.id = :sucursalId")
-    Optional<LocalDate> findMaxFechaArchivoBySucursalId(@Param("sucursalId") Long sucursalId);
-
-
+    @Query("""
+           SELECT MAX(e.fechaArchivo)
+           FROM EventoCarga e
+           WHERE e.sucursal.idDeposito = :idDeposito
+           """)
+    Optional<LocalDate> findMaxFechaArchivoBySucursalId(
+            @Param("idDeposito") Long idDeposito
+    );
 }

@@ -10,13 +10,13 @@ import java.util.Optional;
 @Repository
 public interface SucursalRepository extends JpaRepository<Sucursal, Long> {
 
-    Optional<Sucursal> findByNombre(String nombre);
+    Optional<Sucursal> findByCodDeposito(String codDeposito);
 
-    List<Sucursal> findByInhabilitadoFalse();
-
-    boolean existsByNombre(String nombre);
+    Optional<Sucursal> findByIdDeposito(Long idDeposito);
 
     Optional<Sucursal> findByNombreIgnoreCase(String nombre);
 
+    boolean existsByCodDeposito(String codDeposito);
 
+    List<Sucursal> findByInhabilitadoFalse();
 }

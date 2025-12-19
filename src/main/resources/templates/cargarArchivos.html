@@ -76,13 +76,13 @@
         <div class="card-body">
 
             <div class="mb-4 row">
-                <div class="col-md-6">
-                    <label for="sucursalSelect" class="form-label fw-semibold">Seleccione la sucursal:</label>
-                    <select id="sucursalSelect" class="form-select">
-                        <option value="">-- Seleccione una sucursal --</option>
-                        <option th:each="s : ${sucursales}" th:value="${s.id}" th:text="${s.nombre}"></option>
-                    </select>
-                </div>
+<!--                <div class="col-md-6">-->
+<!--                    <label for="sucursalSelect" class="form-label fw-semibold">Seleccione la sucursal:</label>-->
+<!--                    <select id="sucursalSelect" class="form-select">-->
+<!--                        <option value="">&#45;&#45; Seleccione una sucursal &#45;&#45;</option>-->
+<!--                        <option th:each="s : ${sucursales}" th:value="${s.id}" th:text="${s.nombre}"></option>-->
+<!--                    </select>-->
+<!--                </div>-->
 
                 <div class="col-md-6">
                     <label for="fechaStock" class="form-label fw-semibold">Fecha del stock:</label>
@@ -99,7 +99,7 @@
 
             <!-- Dropzone -->
             <form action="/subirArchivosExcel" class="dropzone text-center" id="miDropzone">
-                <input type="hidden" name="sucursalId" id="sucursalIdHidden"/>
+
                 <div class="dz-message needsclick">
                     <i class="bi bi-cloud-arrow-up display-4 text-primary"></i>
                     <p class="mt-2">Suelta tus archivos aquí o haz clic para seleccionarlos</p>
@@ -152,26 +152,18 @@
       dictRemoveFile: "❌ Quitar",
       init: function () {
         this.on("addedfile", (file) => {
-          const sel = document.getElementById("sucursalSelect");
-          const sucursalId = sel.value;
-          const sucursalText = sel.options[sel.selectedIndex]?.text || "";
 
-          if (!sucursalId) {
-            Swal.fire("⚠️ Atención", "Debe seleccionar una sucursal antes de subir archivos", "warning");
-            this.removeFile(file);
-            return;
-          }
           if (!validarFechaStock()) {
             Swal.fire("⚠️ Atención", "La fecha del stock no puede ser futura.", "warning");
             this.removeFile(file);
             return;
           }
 
-          document.getElementById("sucursalIdHidden").value = sucursalId;
+
 
           Swal.fire({
-            title: "Confirmar sucursal",
-            text: `El archivo será cargado para la sucursal: ${sucursalText}. ¿Desea continuar?`,
+            title: "El archivo será cargado",
+            text: `¿Desea continuar?`,
             icon: "question",
             showCancelButton: true,
             confirmButtonText: "Sí, continuar",
@@ -200,9 +192,9 @@
 
         // Adjuntar sucursalId en el envío
         this.on("sending", (file, xhr, formData) => {
-          const sucursalId = document.getElementById("sucursalSelect").value;
+
           const fechaStock = document.getElementById("fechaStock").value;
-          formData.append("sucursalId", sucursalId);
+
           formData.append("fechaStock", fechaStock);
         });
 

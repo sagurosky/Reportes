@@ -67,9 +67,7 @@ public class Controlador {
         model.addAttribute("nombre", nombre);
         model.addAttribute("pantalla", "Carga de archivos de " + nombre);
         model.addAttribute("colorClase", color);
-        // Solo sucursales activas
-        List<Sucursal> sucursales = sucursalRepository.findByInhabilitadoFalse();
-        model.addAttribute("sucursales", sucursales);
+
 
         //DMS conversiones por error en thymeleaf
         ZonedDateTime ahoraZona = ZonedDateTime.now(ZoneId.of("America/Argentina/Buenos_Aires"));
@@ -78,105 +76,81 @@ public class Controlador {
         return "cargarArchivos";
     }
 
-    // Procesar Excel
+    //  Excel
     @PostMapping("/subirArchivosExcel")
     @ResponseBody
     public ResponseEntity<?> subirArchivo(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("sucursalId") Long sucursalId,
-            @RequestParam("fechaStock") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaStock) {
+            @RequestParam("fechaStock")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaStock
+    ) {
         log.info("📥 Recibido archivo: {}", file.getOriginalFilename());
 
         try (Workbook workbook = getWorkbook(file)) {
+
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "mensaje", "⚠️ El archivo está vacío."
+                ));
+            }
+
             Sheet sheet = workbook.getSheetAt(0);
-            String nombre = file.getOriginalFilename().toLowerCase();
-
-            if (sucursalId == null) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "status", "error",
-                        "mensaje", "Debe seleccionar una sucursal antes de cargar el archivo"
-                ));
-            }
-
-            Optional<Sucursal> optSucursal = sucursalRepository.findById(sucursalId);
-            if (optSucursal.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "status", "error",
-                        "mensaje", "Sucursal no encontrada"
-                ));
-            }
-
-            // ✅ NUEVA VALIDACIÓN: continuidad de fecha
-            Optional<LocalDate> ultimaFechaOpt = eventoCargaRepository.findMaxFechaArchivoBySucursalId(sucursalId);
-            LocalDate fechaEsperada;
-
-            if (ultimaFechaOpt.isPresent()) {
-                fechaEsperada = ultimaFechaOpt.get().plusDays(1);
-                if (!fechaStock.equals(fechaEsperada)) {
-                    String mensaje = String.format(
-                            "❌ La fecha del stock debe ser el día siguiente a la última carga (%s). Fecha recibida: %s",
-                            fechaEsperada, fechaStock
-                    );
-                    return ResponseEntity.badRequest().body(Map.of(
-                            "status", "error",
-                            "mensaje", mensaje
-                    ));
-                }
-            } else {
-                // Primera carga: permitir cualquier fecha ≤ hoy
-                if (fechaStock.isAfter(LocalDate.now())) {
-                    // Esto ya está bloqueado por el frontend, pero por seguridad:
-                    return ResponseEntity.badRequest().body(Map.of(
-                            "status", "error",
-                            "mensaje", "La fecha no puede ser futura."
-                    ));
-                }
-                // ✅ OK: primera carga válida
-            }
-
-
             if (sheet == null || sheet.getPhysicalNumberOfRows() <= 1) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
-                        "mensaje", "⚠️ El archivo está vacío o no contiene datos."
+                        "mensaje", "⚠️ El archivo no contiene datos."
                 ));
             }
 
-            // 🚨 Validar nombre de archivo duplicado
             String nombreArchivo = file.getOriginalFilename();
-            boolean existe = eventoCargaRepository.existsByNombreArchivo(nombreArchivo);
-            if (existe) {
+
+            // 🚨 Validar archivo duplicado
+            if (eventoCargaRepository.existsByNombreArchivo(nombreArchivo)) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
                         "mensaje", "📛 El archivo '" + nombreArchivo + "' ya fue cargado previamente."
                 ));
             }
-            Sucursal sucursal = optSucursal.get();
-            if (nombre.contains("rotacion")) {
-                stockService.procesarRotacion(sheet, nombreArchivo, sucursal, fechaStock);
+
+            // 🚨 Validación de fecha futura (defensiva)
+            if (fechaStock.isAfter(LocalDate.now())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "mensaje", "📅 La fecha del stock no puede ser futura."
+                ));
+            }
+
+            String nombreLower = nombreArchivo.toLowerCase();
+
+            if (nombreLower.contains("inventory")) {
+
+                stockService.procesarStock(sheet, nombreArchivo, fechaStock);
+
                 return ResponseEntity.ok(Map.of(
                         "status", "ok",
-                        "mensaje", "✅ Procesado como Rotación: " + nombre + " para sucursal: " + sucursal.getNombre()
-                ));
-            } else {
-                return ResponseEntity.ok(Map.of(
-                        "status", "warn",
-                        "mensaje", "⚠️ Tipo desconocido: " + nombre
+                        "mensaje", "✅ Archivo procesado correctamente."
                 ));
             }
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "warn",
+                    "mensaje", "⚠️ Tipo de archivo no reconocido: " + nombreArchivo
+            ));
 
         } catch (Exception e) {
+
             String mensaje;
             if (e instanceof OldExcelFormatException || e.getMessage().contains("BIFF5")) {
-                log.info("archivo viejo");
-                mensaje = "📛 Formato muy antiguo (Excel 5.0/7.0 - BIFF5). " +
-                        "💡 Abrilo en Excel y usá 'Guardar como...' ➡️ .xlsx";
+                mensaje = "📛 Formato Excel muy antiguo. Abrí el archivo y guardalo como .xlsx.";
             } else {
-                mensaje = "Error al procesar el archivo: " + e.getMessage();
+                mensaje = "❌ Error al procesar el archivo: " + e.getMessage();
             }
 
-            log.error("❌ Error al procesar archivo", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+            log.error("❌ Error al procesar archivo {}", file.getOriginalFilename(), e);
+
+            return ResponseEntity.badRequest().body(Map.of(
                     "status", "error",
                     "mensaje", mensaje
             ));
@@ -184,52 +158,61 @@ public class Controlador {
     }
 
 
-    private Workbook getWorkbook(MultipartFile file) throws Exception {
+    private Workbook getWorkbook(MultipartFile file) throws IOException {
+
         String originalName = file.getOriginalFilename();
-        if (originalName == null) throw new IllegalArgumentException("Nombre de archivo nulo.");
+        if (originalName == null) {
+            throw new IllegalArgumentException("Nombre de archivo nulo.");
+        }
 
         String lower = originalName.toLowerCase();
-        File tempXls = new File("/tmp", originalName);
-        file.transferTo(tempXls);
 
-        if (lower.endsWith(".xlsx")) {
-            return new XSSFWorkbook(new FileInputStream(tempXls));
-        } else if (lower.endsWith(".xls")) {
-            try {
-                return new HSSFWorkbook(new FileInputStream(tempXls)); // BIFF8
-            } catch (OldExcelFormatException e) {
-                log.warn("📛 Archivo BIFF5 detectado. Convirtiendo: {}", originalName);
-                File convertido = convertirConLibreOffice(tempXls);
-                return new XSSFWorkbook(new FileInputStream(convertido));
+        try (var is = file.getInputStream()) {
+
+            if (lower.endsWith(".xlsx")) {
+                return new XSSFWorkbook(is);
             }
-        }
 
-        throw new IllegalArgumentException("Archivo no soportado: " + originalName);
+            if (lower.endsWith(".xls")) {
+                try {
+                    return new HSSFWorkbook(is); // BIFF8
+                } catch (OldExcelFormatException e) {
+                    throw new OldExcelFormatException(
+                            "Formato Excel muy antiguo (BIFF5). Convertir a .xlsx."
+                    );
+                }
+            }
+
+            throw new IllegalArgumentException("Archivo no soportado: " + originalName);
+        }
     }
 
-    private File convertirConLibreOffice(File archivoOriginal) throws IOException, InterruptedException {
-        String tempDir = "/tmp";
 
-        ProcessBuilder pb = new ProcessBuilder(
-                "libreoffice", "--headless", "--convert-to", "xlsx",
-                archivoOriginal.getAbsolutePath(), "--outdir", tempDir
-        );
 
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
-        int exitCode = process.waitFor();
-
-        if (exitCode != 0) {
-            throw new IOException("LibreOffice falló al convertir el archivo. Código: " + exitCode);
-        }
-
-        File convertido = new File(tempDir, archivoOriginal.getName().replace(".xls", ".xlsx"));
-        if (!convertido.exists()) {
-            throw new IOException("Archivo convertido no encontrado: " + convertido.getAbsolutePath());
-        }
-
-        return convertido;
-    }
+    //DMS cuando convertía los archivos con format antiguo, no debería necesitarlo mas
+//    private File convertirConLibreOffice(File archivoOriginal) throws IOException, InterruptedException {
+//        String tempDir = "/tmp";
+//
+//        ProcessBuilder pb = new ProcessBuilder(
+//                "libreoffice", "--headless", "--convert-to", "xlsx",
+//                archivoOriginal.getAbsolutePath(), "--outdir", tempDir
+//        );
+//
+//        pb.redirectErrorStream(true);
+//        Process process = pb.start();
+//        int exitCode = process.waitFor();
+//
+//        if (exitCode != 0) {
+//            throw new IOException("LibreOffice falló al convertir el archivo. Código: " + exitCode);
+//        }
+//
+//        File convertido = new File(tempDir, archivoOriginal.getName().replace(".xls", ".xlsx"));
+//        if (!convertido.exists()) {
+//            throw new IOException("Archivo convertido no encontrado: " + convertido.getAbsolutePath());
+//        }
+//
+//        return convertido;
+//    }
 }
 
 
