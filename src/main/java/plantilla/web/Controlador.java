@@ -22,6 +22,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -31,9 +32,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
+import plantilla.dominio.EventoCarga;
 import plantilla.dominio.Sucursal;
 import plantilla.repositorios.EventoCargaRepository;
 import plantilla.repositorios.SucursalRepository;
+import plantilla.servicio.EventoCargaService;
+import plantilla.servicio.StockAsyncService;
 import plantilla.servicio.StockService;
 
 
@@ -48,7 +52,11 @@ public class Controlador {
     private SucursalRepository sucursalRepository;
     @Autowired
     private EventoCargaRepository eventoCargaRepository;
+    @Autowired
+    private EventoCargaService eventoCargaService;
 
+    @Autowired
+    private StockAsyncService stockAsyncService;
 
     // Menú
     @GetMapping("/menuPrincipal")
@@ -76,7 +84,6 @@ public class Controlador {
         return "cargarArchivos";
     }
 
-    //  Excel
     @PostMapping("/subirArchivosExcel")
     @ResponseBody
     public ResponseEntity<?> subirArchivo(
@@ -87,14 +94,16 @@ public class Controlador {
     ) {
         log.info("📥 Recibido archivo: {}", file.getOriginalFilename());
 
-        try (Workbook workbook = getWorkbook(file)) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "mensaje", "⚠️ El archivo está vacío."
+            ));
+        }
 
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "status", "error",
-                        "mensaje", "⚠️ El archivo está vacío."
-                ));
-            }
+        String nombreArchivo = file.getOriginalFilename();
+
+        try (Workbook workbook = getWorkbook(file)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             if (sheet == null || sheet.getPhysicalNumberOfRows() <= 1) {
@@ -104,17 +113,15 @@ public class Controlador {
                 ));
             }
 
-            String nombreArchivo = file.getOriginalFilename();
-
-            // 🚨 Validar archivo duplicado
-            if (eventoCargaRepository.existsByNombreArchivo(nombreArchivo)) {
+            // 🚨 archivo duplicado
+            if (eventoCargaService.existeArchivo(nombreArchivo)) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
                         "mensaje", "📛 El archivo '" + nombreArchivo + "' ya fue cargado previamente."
                 ));
             }
 
-            // 🚨 Validación de fecha futura (defensiva)
+            // 🚨 fecha futura
             if (fechaStock.isAfter(LocalDate.now())) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
@@ -122,33 +129,59 @@ public class Controlador {
                 ));
             }
 
-            String nombreLower = nombreArchivo.toLowerCase();
-
-            if (nombreLower.contains("inventory")) {
-
-                stockService.procesarStock(sheet, nombreArchivo, fechaStock);
-
+            if (!nombreArchivo.toLowerCase().contains("inventory")) {
                 return ResponseEntity.ok(Map.of(
-                        "status", "ok",
-                        "mensaje", "✅ Archivo procesado correctamente."
+                        "status", "warn",
+                        "mensaje", "⚠️ Tipo de archivo no reconocido: " + nombreArchivo
                 ));
             }
 
+            // 🔐 usuario
+            String usuario = Optional.ofNullable(
+                    SecurityContextHolder.getContext().getAuthentication()
+            ).map(auth -> auth.getName()).orElse("sistema");
+
+            // 🏬 resolver sucursal desde archivo
+            Sucursal sucursal = stockService.resolverSucursalDesdeArchivo(
+                    sheet,
+                    nombreArchivo
+            );
+
+            int totalRegistros = sheet.getPhysicalNumberOfRows() - 1;
+
+            // 📌 crear evento inicial
+            EventoCarga evento = eventoCargaService.crearEventoInicial(
+                    nombreArchivo,
+                    sucursal,
+                    fechaStock,
+                    usuario,
+                    totalRegistros
+            );
+
+            // 🚀 disparar async
+            stockAsyncService.procesarAsync(
+                    sheet,
+                    nombreArchivo,
+                    fechaStock,
+                    evento.getId()
+            );
+
             return ResponseEntity.ok(Map.of(
-                    "status", "warn",
-                    "mensaje", "⚠️ Tipo de archivo no reconocido: " + nombreArchivo
+                    "status", "ok",
+                    "eventoId", evento.getId(),
+                    "mensaje", "📦 Archivo recibido. Procesando en segundo plano."
             ));
 
         } catch (Exception e) {
 
             String mensaje;
             if (e instanceof OldExcelFormatException || e.getMessage().contains("BIFF5")) {
-                mensaje = "📛 Formato Excel muy antiguo. Abrí el archivo y guardalo como .xlsx.";
+                mensaje = "📛 Formato Excel muy antiguo. Guardalo como .xlsx.";
             } else {
                 mensaje = "❌ Error al procesar el archivo: " + e.getMessage();
             }
 
-            log.error("❌ Error al procesar archivo {}", file.getOriginalFilename(), e);
+            log.error("❌ Error al procesar archivo {}", nombreArchivo, e);
 
             return ResponseEntity.badRequest().body(Map.of(
                     "status", "error",

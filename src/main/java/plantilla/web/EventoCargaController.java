@@ -46,6 +46,22 @@ public class EventoCargaController {
         model.addAttribute("eventos", eventos);
         return "eventos/lista"; // 👈 plantilla Thymeleaf
     }
+
+    @GetMapping("/{id}/estado")
+    @ResponseBody
+    public ResponseEntity<?> estadoEvento(@PathVariable Long id) {
+
+        EventoCarga e = eventoCargaRepository.findById(id)
+                .orElseThrow();
+
+        return ResponseEntity.ok(Map.of(
+                "estado", e.getEstado(),
+                "procesados", e.getProcesados(),
+                "total", e.getTotalRegistros(),
+                "porcentaje", e.getPorcentaje(),
+                "observaciones", e.getObservaciones()
+        ));
+    }
 }
 
 

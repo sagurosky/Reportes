@@ -74,7 +74,18 @@ public class StockService {
     public void procesarStock(
             Sheet sheet,
             String nombreArchivo,
-            LocalDate fechaStock) {
+            LocalDate fechaStock,
+            EventoCarga evento) {
+
+        int totalRegistros = sheet.getPhysicalNumberOfRows() - 1;
+
+        evento.setTotalRegistros(totalRegistros);
+        evento.setProcesados(0);
+        evento.setPorcentaje(0);
+        evento.setEstado("EN_PROCESO");
+
+        evento = eventoCargaRepository.save(evento);
+
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String usuarioActual = auth != null ? auth.getName() : "sistema";
@@ -92,19 +103,6 @@ public class StockService {
                 idDeposito, codDeposito, nombreDeposito, nombreArchivo
         );
 
-        // ==========================
-        // Crear evento
-        // ==========================
-        EventoCarga evento = new EventoCarga();
-        evento.setNombreArchivo(nombreArchivo);
-        evento.setSucursal(sucursal);
-        evento.setFecha(TiempoUtils.ahora());
-        evento.setFechaArchivo(fechaStock);
-        evento.setUsuario(usuarioActual);
-        evento.setModulo("Stock");
-        evento.setEstado("EN_PROCESO");
-
-        evento = eventoCargaRepository.save(evento);
 
         Long stockInicial = null;
         Long stockFinal = null;
@@ -125,10 +123,29 @@ public class StockService {
                             bloque, sucursal, fechaStock, evento
                     );
 
-                    if (stockInicial == null) {
+log.info("stock final"+evento.getIdStockFinal());
+
+                    int procesadosHastaAhora = evento.getProcesados() + bloque.size();
+                    evento.setProcesados(procesadosHastaAhora);
+
+                    int porcentaje = (int)
+                            ((procesadosHastaAhora * 100.0) / evento.getTotalRegistros());
+
+                    evento.setPorcentaje(Math.min(porcentaje, 100));
+
+                    eventoCargaRepository.save(evento);
+
+
+
+
+
+                    if (r.getStockInicial() != null && stockInicial == null) {
                         stockInicial = r.getStockInicial();
                     }
-                    stockFinal = r.getStockFinal();
+
+                    if (r.getStockFinal() != null) {
+                        stockFinal = r.getStockFinal();
+                    }
 
                     bloque.clear();
                 }
@@ -140,10 +157,13 @@ public class StockService {
                         bloque, sucursal, fechaStock, evento
                 );
 
-                if (stockInicial == null) {
+                if (r.getStockInicial() != null && stockInicial == null) {
                     stockInicial = r.getStockInicial();
                 }
-                stockFinal = r.getStockFinal();
+
+                if (r.getStockFinal() != null) {
+                    stockFinal = r.getStockFinal();
+                }
             }
 
             evento.setEstado("COMPLETADO");
@@ -161,7 +181,23 @@ public class StockService {
         }
     }
 
+    public Sucursal resolverSucursalDesdeArchivo(
+            Sheet sheet,
+            String nombreArchivo
+    ) {
+        Row firstDataRow = obtenerPrimeraFilaDatos(sheet);
 
+        Long idDeposito = Validadores.safeLongCell(firstDataRow, IDX_ID_DEPOSITO);
+        String codDeposito = Validadores.safeStringCell(firstDataRow, IDX_COD_DEPOSITO);
+        String nombreDeposito = Validadores.safeStringCell(firstDataRow, IDX_DEPOSITO);
+
+        return resolverSucursal(
+                idDeposito,
+                codDeposito,
+                nombreDeposito,
+                nombreArchivo
+        );
+    }
 
 
     private Row obtenerPrimeraFilaDatos(Sheet sheet) {

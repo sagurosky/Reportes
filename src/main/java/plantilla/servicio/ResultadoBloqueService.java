@@ -24,6 +24,7 @@ import java.util.Optional;
 import static plantilla.servicio.StockService.*;
 import static plantilla.util.Validadores.safeStringCell;
 @Service
+
 public class ResultadoBloqueService {
 
     @Autowired
@@ -44,6 +45,8 @@ public class ResultadoBloqueService {
             Sucursal sucursal,
             LocalDate fechaStock,
             EventoCarga evento) {
+
+        EventoCarga eventoManaged = entityManager.merge(evento);
 
         Long stockInicial = null;
         Long stockFinal = null;
@@ -90,7 +93,7 @@ public class ResultadoBloqueService {
             stock.setCantidad(cantidad);
             stock.setFechaStock(fechaStock);
             stock.setFechaCarga(TiempoUtils.ahora());
-            stock.setEventoCarga(evento); // 🔗 relación directa
+            stock.setEventoCarga(eventoManaged);
 
             entityManager.persist(stock);
 
@@ -108,7 +111,7 @@ public class ResultadoBloqueService {
 
         entityManager.flush();
         entityManager.clear();
-
+System.out.println("stock final desde dto: "+stockFinal);
         return new ResultadoBloqueDTO(stockInicial, stockFinal);
     }
 

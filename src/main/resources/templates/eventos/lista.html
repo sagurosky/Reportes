@@ -47,6 +47,16 @@
                         <span class="badge bg-info text-dark" th:text="${e.modulo}"></span>
                     </td>
                     <td>
+                        <div class="progress">
+                            <div class="progress-bar"
+                                 role="progressbar"
+                                 th:style="'width:' + ${e.porcentaje} + '%'"
+                                 th:text="${e.porcentaje + '%'}">
+                            </div>
+                        </div>
+
+
+
                          <span th:classappend="
                               ${e.estado == 'completado'} ? 'badge bg-success' :
                               (e.estado == 'fallido' ? 'badge bg-danger' : 'badge bg-warning text-dark')"
@@ -73,6 +83,11 @@
             pageLength: 20,
             responsive: true
         });
+
+        setInterval(function () {
+            location.reload();
+        }, 5000); // cada 5 segundos
+
     });
 
 </script>

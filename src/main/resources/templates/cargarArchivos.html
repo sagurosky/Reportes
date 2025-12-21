@@ -176,12 +176,7 @@
                 progress.style.width = "80%";
               }
 
-              Swal.fire({
-                title: "Procesando...",
-                text: "Procesando archivo",
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-              });
+
 
               this.processFile(file);
             } else {

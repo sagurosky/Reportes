@@ -28,6 +28,10 @@ public class EventoCarga {
     private Long idStockInicial;       // primer ID generado
     private Long idStockFinal;         // último ID generado
 
+    private Integer totalRegistros;
+    private Integer procesados;
+    private Integer porcentaje;
+
     @ManyToOne
     @JoinColumn(name = "sucursal_id")
     private Sucursal sucursal;
