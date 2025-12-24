@@ -111,7 +111,7 @@ public class ResultadoBloqueService {
 
         entityManager.flush();
         entityManager.clear();
-System.out.println("stock final desde dto: "+stockFinal);
+
         return new ResultadoBloqueDTO(stockInicial, stockFinal);
     }
 

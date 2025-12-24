@@ -38,9 +38,12 @@ public class StockAsyncService {
                     evento
             );
 
-            eventoCargaService.marcarCompletado(evento);
+            EventoCarga eventoFinal =
+                    eventoCargaService.buscarPorId(eventoId);
 
-            log.info("✅ Procesamiento finalizado evento {}", eventoId);
+            eventoCargaService.marcarCompletado(eventoFinal);
+
+            log.info("✅ Procesamiento finalizado evento {}", eventoFinal);
 
         } catch (Exception e) {
 

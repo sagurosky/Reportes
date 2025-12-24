@@ -37,7 +37,7 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="e : ${eventos}">
+                <tr th:each="e : ${eventos}" th:attr="data-evento-id=${e.id}">
                     <td th:text="${e.nombreArchivo}"></td>
                     <td th:text="${e.sucursal.nombre}"></td>
                     <td th:text="${#temporals.format(e.fecha, 'dd/MM/yyyy HH:mm')}"></td>
@@ -46,26 +46,30 @@
                     <td>
                         <span class="badge bg-info text-dark" th:text="${e.modulo}"></span>
                     </td>
-                    <td>
-                        <div class="progress">
-                            <div class="progress-bar"
-                                 role="progressbar"
-                                 th:style="'width:' + ${e.porcentaje} + '%'"
-                                 th:text="${e.porcentaje + '%'}">
+                    <td class="estado-td">
+
+                        <div class="progress-wrapper"
+                             th:if="${e.estado != 'COMPLETADO'}">
+                            <div class="progress">
+                                <div class="progress-bar progreso-barra"
+                                     role="progressbar"
+                                     th:style="'width:' + ${e.porcentaje} + '%'"
+                                     th:text="${e.porcentaje + '%'}">
+                                </div>
                             </div>
                         </div>
 
+                        <span class="estado-badge"
+                              th:classappend="
+                                  ${e.estado == 'COMPLETADO'} ? 'badge bg-success' :
+                                  (${e.estado == 'FALLIDO'} ? 'badge bg-danger' : 'badge bg-warning text-dark')"
+                                                  th:text="${e.estado}">
+                        </span>
 
-
-                         <span th:classappend="
-                              ${e.estado == 'completado'} ? 'badge bg-success' :
-                              (e.estado == 'fallido' ? 'badge bg-danger' : 'badge bg-warning text-dark')"
-                               th:text="${e.estado}">
-                          </span>
                     </td>
-                    <td th:text="${e.observaciones}"></td>
-                    <td th:text="${e.idStockInicial != null ? e.idStockInicial : '-'}"></td>
-                    <td th:text="${e.idStockFinal != null ? e.idStockFinal : '-'}"></td>
+                    <td th:text="${e.observaciones}" class="observaciones"></td>
+                    <td class="stock inicial" th:text="${e.idStockInicial != null ? e.idStockInicial : '-'}"></td>
+                    <td class="stock final" th:text="${e.idStockFinal != null ? e.idStockFinal : '-'}"></td>
                 </tr>
                 </tbody>
             </table>
@@ -84,9 +88,76 @@
             responsive: true
         });
 
-        setInterval(function () {
-            location.reload();
-        }, 5000); // cada 5 segundos
+       (function () {
+
+            const INTERVALO = 4000;
+
+            function actualizarFila(tr) {
+                const eventoId = tr.dataset.eventoId;
+                const td = tr.querySelector('.estado-td');
+
+                fetch(`/eventosCarga/${eventoId}/estado`)
+                    .then(r => r.json())
+                    .then(data => {
+
+                        // ===== Estado (badge) =====
+                        const badge = td.querySelector('.estado-badge');
+                        badge.innerText = data.estado;
+
+                        badge.className = 'estado-badge badge';
+                        if (data.estado === 'COMPLETADO') {
+                            badge.classList.add('bg-success');
+                        } else if (data.estado === 'FALLIDO') {
+                            badge.classList.add('bg-danger');
+                        } else {
+                            badge.classList.add('bg-warning', 'text-dark');
+                        }
+
+                        // ===== Progreso =====
+                        const progressWrapper = td.querySelector('.progress-wrapper');
+                        const progressBar = td.querySelector('.progreso-barra');
+
+                        if (data.estado !== 'COMPLETADO') {
+                            if (progressWrapper && progressBar) {
+                                progressBar.style.width = data.porcentaje + '%';
+                                progressBar.innerText = data.porcentaje + '%';
+                            }
+                        } else {
+                            // Si completó, ocultamos la barra
+                            if (progressWrapper) {
+                                progressWrapper.style.display = 'none';
+                            }
+                            tr.dataset.finalizado = 'true';
+
+                            // ===== Actualizar stock =====
+                            const stockInicialTd = tr.querySelector('td.stock.inicial');
+                            const stockFinalTd   = tr.querySelector('td.stock.final');
+
+                            if (stockInicialTd) {
+                                stockInicialTd.textContent = data.idStockInicial ?? '-';
+                            }
+                            if (stockFinalTd) {
+                                stockFinalTd.textContent = data.idStockFinal ?? '-';
+                            }
+
+
+
+                        }
+
+                    })
+                    .catch(err => console.error('Error polling evento', eventoId, err));
+            }
+
+            setInterval(() => {
+                document.querySelectorAll('tr[data-evento-id]').forEach(tr => {
+                    if (tr.dataset.finalizado !== 'true') {
+                        actualizarFila(tr);
+                    }
+
+                });
+            }, INTERVALO);
+
+        })();
 
     });
 

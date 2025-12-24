@@ -101,6 +101,18 @@ public class Controlador {
             ));
         }
 
+        boolean hayCargaEnProceso =
+                eventoCargaRepository.existsByEstado("EN_PROCESO");
+
+        if (hayCargaEnProceso) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "mensaje", "⚠️  Ya existe una carga de stock en proceso"
+            ));
+        }
+
+
+
         String nombreArchivo = file.getOriginalFilename();
 
         try (Workbook workbook = getWorkbook(file)) {

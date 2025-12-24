@@ -20,4 +20,6 @@ public interface EventoCargaRepository extends JpaRepository<EventoCarga, Long> 
     Optional<LocalDate> findMaxFechaArchivoBySucursalId(
             @Param("idDeposito") Long idDeposito
     );
+
+    boolean existsByEstado(String enProceso);
 }

@@ -79,6 +79,7 @@ public class StockService {
 
         int totalRegistros = sheet.getPhysicalNumberOfRows() - 1;
 
+
         evento.setTotalRegistros(totalRegistros);
         evento.setProcesados(0);
         evento.setPorcentaje(0);
@@ -123,7 +124,6 @@ public class StockService {
                             bloque, sucursal, fechaStock, evento
                     );
 
-log.info("stock final"+evento.getIdStockFinal());
 
                     int procesadosHastaAhora = evento.getProcesados() + bloque.size();
                     evento.setProcesados(procesadosHastaAhora);
@@ -140,6 +140,7 @@ log.info("stock final"+evento.getIdStockFinal());
 
 
                     if (r.getStockInicial() != null && stockInicial == null) {
+
                         stockInicial = r.getStockInicial();
                     }
 
@@ -148,6 +149,7 @@ log.info("stock final"+evento.getIdStockFinal());
                     }
 
                     bloque.clear();
+
                 }
             }
 
@@ -169,8 +171,11 @@ log.info("stock final"+evento.getIdStockFinal());
             evento.setEstado("COMPLETADO");
             evento.setIdStockInicial(stockInicial);
             evento.setIdStockFinal(stockFinal);
-            eventoCargaRepository.save(evento);
+            EventoCarga e=eventoCargaRepository.save(evento);
+            log.info("stock inicial:  "+e.getIdStockInicial());
 
+            log.info("stock inicial : "+e.getIdStockFinal());
+            log.info("stock id : "+e.getId());
         } catch (Exception ex) {
             evento.setEstado("FALLIDO");
             evento.setIdStockInicial(stockInicial);

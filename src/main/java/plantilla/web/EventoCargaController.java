@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,21 +19,21 @@ import plantilla.dominio.EventoCarga;
 import plantilla.dominio.Sucursal;
 import plantilla.repositorios.EventoCargaRepository;
 import plantilla.repositorios.SucursalRepository;
+import plantilla.servicio.EventoCargaService;
 import plantilla.servicio.StockService;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
+import java.util.*;
+@Slf4j
 @Controller
 @RequestMapping("/eventosCarga")
 public class EventoCargaController {
 
     private final EventoCargaRepository eventoCargaRepository;
+    @Autowired
+    EventoCargaService eventoCargaService;
 
     public EventoCargaController(EventoCargaRepository eventoCargaRepository) {
         this.eventoCargaRepository = eventoCargaRepository;
@@ -49,18 +50,26 @@ public class EventoCargaController {
 
     @GetMapping("/{id}/estado")
     @ResponseBody
+    @Transactional(readOnly = true)
     public ResponseEntity<?> estadoEvento(@PathVariable Long id) {
 
         EventoCarga e = eventoCargaRepository.findById(id)
-                .orElseThrow();
+                .orElseThrow(() -> new RuntimeException("Evento no encontrado"));
 
-        return ResponseEntity.ok(Map.of(
-                "estado", e.getEstado(),
-                "procesados", e.getProcesados(),
-                "total", e.getTotalRegistros(),
-                "porcentaje", e.getPorcentaje(),
-                "observaciones", e.getObservaciones()
-        ));
+        log.info("ESTADO endpoint -> id: {}, ini: {}, fin: {}",
+                e.getId(),
+                e.getIdStockInicial(),
+                e.getIdStockFinal());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("estado", e.getEstado());
+        response.put("procesados", e.getProcesados());
+        response.put("total", e.getTotalRegistros());
+        response.put("porcentaje", e.getPorcentaje());
+        response.put("idStockInicial", e.getIdStockInicial());
+        response.put("idStockFinal", e.getIdStockFinal());
+
+        return ResponseEntity.ok(response);
     }
 }
 

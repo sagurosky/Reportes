@@ -1,14 +1,19 @@
 package plantilla.dominio;
 
 
-import lombok.Data;
+import lombok.*;
 
 import javax.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Data
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString(exclude = "stocks")
 @Entity
 @Table(name = "eventos_carga")
 public class EventoCarga {
