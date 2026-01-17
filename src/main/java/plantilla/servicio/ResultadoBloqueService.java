@@ -63,20 +63,22 @@ public class ResultadoBloqueService {
             // -----------------------
             // Producto
             // -----------------------
-            Producto producto = productoRepository.findBySku(sku)
-                    .orElseGet(() -> {
-                        Producto nuevo = new Producto();
-                        nuevo.setSku(sku);
-                        nuevo.setMasterId(safeStringCell(row, IDX_MASTER_ID));
-                        nuevo.setDescripcion(safeStringCell(row, IDX_DESCRIPCION));
-                        nuevo.setColor(safeStringCell(row, IDX_COLOR));
+            Optional<Producto> productoOpt = productoRepository.findBySku(sku);
 
-                        nuevo.setAmbiente(safeStringCell(row, IDX_AMBIENTE));
-                        nuevo.setFamilia(safeStringCell(row, IDX_FAMILIA));
-                        nuevo.setNivel3(safeStringCell(row, IDX_NIVEL3));
-                        nuevo.setNivel4(safeStringCell(row, IDX_NIVEL4));
-                        return productoRepository.save(nuevo);
-                    });
+            boolean productoNuevo = productoOpt.isEmpty();
+
+            Producto producto = productoOpt.orElseGet(() -> {
+                Producto nuevo = new Producto();
+                nuevo.setSku(sku);
+                nuevo.setMasterId(safeStringCell(row, IDX_MASTER_ID));
+                nuevo.setDescripcion(safeStringCell(row, IDX_DESCRIPCION));
+                nuevo.setColor(safeStringCell(row, IDX_COLOR));
+                nuevo.setAmbiente(safeStringCell(row, IDX_AMBIENTE));
+                nuevo.setFamilia(safeStringCell(row, IDX_FAMILIA));
+                nuevo.setNivel3(safeStringCell(row, IDX_NIVEL3));
+                nuevo.setNivel4(safeStringCell(row, IDX_NIVEL4));
+                return productoRepository.save(nuevo);
+            });
 
             // -----------------------
             // Último stock
@@ -99,6 +101,7 @@ public class ResultadoBloqueService {
             stock.setFechaStock(fechaStock);
             stock.setFechaCarga(TiempoUtils.ahora());
             stock.setEventoCarga(eventoManaged);
+            stock.setEsInicial(productoNuevo);
 
             entityManager.persist(stock);
 

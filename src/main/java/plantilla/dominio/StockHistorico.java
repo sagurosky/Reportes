@@ -36,6 +36,10 @@ public class StockHistorico {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "evento_carga_id", nullable = false)
     private EventoCarga eventoCarga;
+
+
+    private Boolean esInicial;
+    private Integer diffAnterior;
 }
 
 
