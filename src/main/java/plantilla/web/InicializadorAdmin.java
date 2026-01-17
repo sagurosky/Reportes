@@ -10,6 +10,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import plantilla.datos.RolDao;
 import plantilla.datos.UsuarioDao;
 import plantilla.dominio.Rol;
 import plantilla.dominio.Usuario;
@@ -20,22 +21,35 @@ public class InicializadorAdmin implements CommandLineRunner {
     @Autowired
     private UsuarioDao usuarioDao;
 
+    @Autowired
+    private RolDao rolDao;
+
     @Override
     public void run(String... args) {
+
+        // 1. Inicializar roles
+        Rol rolAdmin = crearRolSiNoExiste("ROLE_ADMIN");
+        Rol rolOp    = crearRolSiNoExiste("ROLE_OP");
+
+        // 2. Crear admin solo si no hay usuarios
         if (usuarioDao.count() == 0) {
 
             Usuario admin = new Usuario();
             admin.setUsername("admin");
-            admin.setInhabilitado(false);
             admin.setPassword(EncriptarPassword.encriptarPassword("admin"));
-
-            // Asignamos directamente el rol al usuario
-            Rol rolAdmin = new Rol();
-            rolAdmin.setNombre("ROLE_ADMIN");
+            admin.setInhabilitado(false);
             admin.setRol(rolAdmin);
 
             usuarioDao.save(admin);
         }
     }
-}
 
+    private Rol crearRolSiNoExiste(String nombre) {
+        return rolDao.findByNombre(nombre)
+                .orElseGet(() -> {
+                    Rol r = new Rol();
+                    r.setNombre(nombre);
+                    return rolDao.save(r);
+                });
+    }
+}

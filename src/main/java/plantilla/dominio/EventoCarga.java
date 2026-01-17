@@ -29,7 +29,7 @@ public class EventoCarga {
     private String estado;
     private String observaciones;
     private String modulo; // "stock", "pedidos", "caja", etc.
-
+    private String RutaS3;
     private Long idStockInicial;       // primer ID generado
     private Long idStockFinal;         // último ID generado
 

@@ -7,10 +7,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.OldExcelFormatException;
@@ -37,6 +34,7 @@ import plantilla.dominio.Sucursal;
 import plantilla.repositorios.EventoCargaRepository;
 import plantilla.repositorios.SucursalRepository;
 import plantilla.servicio.EventoCargaService;
+import plantilla.servicio.S3Service;
 import plantilla.servicio.StockAsyncService;
 import plantilla.servicio.StockService;
 
@@ -58,6 +56,8 @@ public class Controlador {
     @Autowired
     private StockAsyncService stockAsyncService;
 
+    @Autowired
+    S3Service s3Service;
     // Menú
     @GetMapping("/menuPrincipal")
     public String inicio(Model model) {
@@ -181,7 +181,7 @@ public class Controlador {
             return ResponseEntity.ok(Map.of(
                     "status", "ok",
                     "eventoId", evento.getId(),
-                    "mensaje", "📦 Archivo recibido. Procesando en segundo plano."
+                    "mensaje", "📦 Archivo recibido: "+file.getOriginalFilename()+". Procesando en segundo plano."
             ));
 
         } catch (Exception e) {
@@ -231,6 +231,169 @@ public class Controlador {
             throw new IllegalArgumentException("Archivo no soportado: " + originalName);
         }
     }
+
+
+    @PostMapping("/subirArchivosExcelS3")
+    @ResponseBody
+    public ResponseEntity<?> subirArchivoS3(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("fechaStock") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaStock,
+            @RequestParam(value = "observaciones", required = false)
+            String observaciones
+    ) throws IOException {
+
+
+
+
+
+
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "mensaje", "⚠️ El archivo está vacío."
+            ));
+        }
+
+        boolean hayCargaEnProceso =
+                eventoCargaRepository.existsByEstado("EN_PROCESO");
+
+        if (hayCargaEnProceso) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "mensaje", "⚠️  Ya existe una carga de stock en proceso"
+            ));
+        }
+
+
+
+        String nombreArchivo = file.getOriginalFilename();
+
+        try (Workbook workbook = getWorkbook(file)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            if (sheet == null || sheet.getPhysicalNumberOfRows() <= 1) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "mensaje", "⚠️ El archivo no contiene datos."
+                ));
+            }
+
+            // 🚨 archivo duplicado
+            if (eventoCargaService.existeArchivo(nombreArchivo)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "mensaje", "📛 El archivo '" + nombreArchivo + "' ya fue cargado previamente."
+                ));
+            }
+
+            // 🚨 fecha futura
+            if (fechaStock.isAfter(LocalDate.now())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "mensaje", "📅 La fecha del stock no puede ser futura."
+                ));
+            }
+
+            if (!nombreArchivo.toLowerCase().contains("inventory")) {
+                return ResponseEntity.ok(Map.of(
+                        "status", "warn",
+                        "mensaje", "⚠️ Tipo de archivo no reconocido: " + nombreArchivo
+                ));
+            }
+
+            // 🔐 usuario
+            String usuario = Optional.ofNullable(
+                    SecurityContextHolder.getContext().getAuthentication()
+            ).map(auth -> auth.getName()).orElse("sistema");
+
+            // 🏬 resolver sucursal desde archivo
+            Sucursal sucursal = stockService.resolverSucursalDesdeArchivo(
+                    sheet,
+                    nombreArchivo
+            );
+
+            int totalRegistros = sheet.getPhysicalNumberOfRows() - 1;
+
+
+
+
+
+
+
+            String s3Key = "stock/" + UUID.randomUUID() + "-" + nombreArchivo;
+
+            // 1️⃣ Subir a S3
+            s3Service.subirArchivo(s3Key, file);
+
+            // 2️⃣ Crear evento
+
+
+
+            EventoCarga evento = eventoCargaService.crearEventoInicialS3(
+                    nombreArchivo,
+                    sucursal,
+                    fechaStock,
+                    usuario,
+                    totalRegistros,
+                    s3Key,
+                    observaciones
+            );
+
+
+            // 3️⃣ Lanzar async
+            stockAsyncService.procesarDesdeS3(
+                    evento.getId(),
+                    fechaStock
+            );
+
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "ok",
+                    "eventoId", evento.getId(),
+                    "mensaje", "📦 Archivo recibido: "+file.getOriginalFilename()+". Procesando en segundo plano."
+            ));
+
+
+
+
+
+
+        } catch (Exception e) {
+
+            String mensaje;
+            if (e instanceof OldExcelFormatException || e.getMessage().contains("BIFF5")) {
+                mensaje = "📛 Formato Excel muy antiguo. Guardalo como .xlsx.";
+            } else {
+                mensaje = "❌ Error al procesar el archivo: " + e.getMessage();
+            }
+
+            log.error("❌ Error al procesar archivo {}", nombreArchivo, e);
+
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "mensaje", mensaje
+            ));
+        }finally {
+
+
+
+        }
+
+
+
+
+
+
+
+
+
+
+    }
+
+
+
 
 
 

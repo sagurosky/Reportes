@@ -30,13 +30,13 @@ public class ControladorSucursal {
             Model model,
             RedirectAttributes redirectAttributes) {
 
-        boolean esEdicion = (sucursal.getIdDeposito() != null);
+        boolean esEdicion = (sucursal.getId() != null);
 
         // 🔍 Validaciones de nombre duplicado
         Sucursal existente = sucursalService.buscarPorNombre(sucursal.getNombre());
 
         if (esEdicion) {
-            if (existente != null && !existente.getIdDeposito().equals(sucursal.getIdDeposito())) {
+            if (existente != null && !existente.getId().equals(sucursal.getId())) {
                 model.addAttribute("error", "Ya existe otra sucursal con ese nombre.");
                 model.addAttribute("esEdicion", true);
                 model.addAttribute("nuevaSucursal", sucursal);

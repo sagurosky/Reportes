@@ -70,6 +70,11 @@ public class ResultadoBloqueService {
                         nuevo.setMasterId(safeStringCell(row, IDX_MASTER_ID));
                         nuevo.setDescripcion(safeStringCell(row, IDX_DESCRIPCION));
                         nuevo.setColor(safeStringCell(row, IDX_COLOR));
+
+                        nuevo.setAmbiente(safeStringCell(row, IDX_AMBIENTE));
+                        nuevo.setFamilia(safeStringCell(row, IDX_FAMILIA));
+                        nuevo.setNivel3(safeStringCell(row, IDX_NIVEL3));
+                        nuevo.setNivel4(safeStringCell(row, IDX_NIVEL4));
                         return productoRepository.save(nuevo);
                     });
 
@@ -77,7 +82,7 @@ public class ResultadoBloqueService {
             // Último stock
             // -----------------------
             Optional<StockHistorico> ultimoOpt =
-                    stockHistoricoRepository.findUltimoStockPorSkuYSucursal(
+                    stockHistoricoRepository.findTopByProducto_SkuAndSucursalOrderByFechaStockDescIdDesc(
                             sku, sucursal
                     );
 

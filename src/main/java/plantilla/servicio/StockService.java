@@ -159,6 +159,15 @@ public class StockService {
                         bloque, sucursal, fechaStock, evento
                 );
 
+                int procesadosHastaAhora = evento.getProcesados() + bloque.size();
+                evento.setProcesados(procesadosHastaAhora);
+
+                int porcentaje = (int)
+                        ((procesadosHastaAhora * 100.0) / evento.getTotalRegistros());
+
+                evento.setPorcentaje(Math.min(porcentaje, 100));
+                eventoCargaRepository.save(evento);
+
                 if (r.getStockInicial() != null && stockInicial == null) {
                     stockInicial = r.getStockInicial();
                 }
@@ -171,6 +180,7 @@ public class StockService {
             evento.setEstado("COMPLETADO");
             evento.setIdStockInicial(stockInicial);
             evento.setIdStockFinal(stockFinal);
+            evento.setPorcentaje(100);
             EventoCarga e=eventoCargaRepository.save(evento);
             log.info("stock inicial:  "+e.getIdStockInicial());
 
@@ -214,27 +224,31 @@ public class StockService {
         throw new IllegalStateException("El archivo no contiene filas de datos");
     }
 
+
+
     private Sucursal resolverSucursal(
             Long idDeposito,
             String codDeposito,
             String nombreDeposito,
             String nombreArchivo) {
 
-        return sucursalRepository.findByIdDeposito(idDeposito)
-                .orElseGet(() -> {
-                    Sucursal nueva = new Sucursal();
-                    nueva.setIdDeposito(idDeposito);
-                    nueva.setCodDeposito(codDeposito);
-                    nueva.setNombre(
-                            nombreDeposito != null
-                                    ? nombreDeposito
-                                    : extraerSucursalDesdeNombreArchivo(nombreArchivo)
-                    );
-                    nueva.setInhabilitado(false);
-                    return sucursalRepository.save(nueva);
-                });
-    }
+        List<Sucursal> existentes = sucursalRepository.findAllByIdDeposito(idDeposito);
 
+        if (!existentes.isEmpty()) {
+            return existentes.get(0); // elegimos la primera
+        }
+
+        Sucursal nueva = new Sucursal();
+        nueva.setIdDeposito(idDeposito);
+        nueva.setCodDeposito(codDeposito);
+        nueva.setNombre(
+                nombreDeposito != null
+                        ? nombreDeposito
+                        : extraerSucursalDesdeNombreArchivo(nombreArchivo)
+        );
+        nueva.setInhabilitado(false);
+        return sucursalRepository.save(nueva);
+    }
 
     private String extraerSucursalDesdeNombreArchivo(String nombreArchivo) {
         String sinExtension = nombreArchivo.replaceFirst("[.][^.]+$", "");

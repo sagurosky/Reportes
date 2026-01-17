@@ -26,12 +26,12 @@
         </thead>
         <tr th:each="usuario: ${usuarios }">
             <td th:text="${usuario.username}"></td>
-            <td th:text="${usuario.rol.nombre}" th:id="'rol'+${usuario.idUsuario}"></td>
-            <td><a th:href="@{/editarUsuario/}+${usuario.idUsuario}" th:text="Editar"></a>/
+            <td th:text="${usuario.rol.nombre}" th:id="'rol'+${usuario.id}"></td>
+            <td><a th:href="@{/editarUsuario/}+${usuario.id}" th:text="Editar"></a>/
                 <span th:if="${usuario.rol.nombre!='ROLE_ADMIN'}">
-                <a th:if="${usuario.inhabilitado==false}" th:href="@{/eliminarUsuario/}+${usuario.idUsuario}"
+                <a th:if="${usuario.inhabilitado==false}" th:href="@{/eliminarUsuario/}+${usuario.id}"
                    th:text="Inhabilitar"></a>
-                <a th:if="${usuario.inhabilitado==true}" th:href="@{/habilitarUsuario/}+${usuario.idUsuario}"
+                <a th:if="${usuario.inhabilitado==true}" th:href="@{/habilitarUsuario/}+${usuario.id}"
                    th:text="Habilitar"></a>
                 </span>
             </td>

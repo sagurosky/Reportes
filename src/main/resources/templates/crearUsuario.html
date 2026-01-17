@@ -18,11 +18,11 @@
     <div class="card mx-auto" style="width: 50rem;">
 
         <form method="POST"
-              th:action="${usuario.idUsuario == null} ? @{/gestionar} : @{/guardarUsuarioEditado}"
+              th:action="${usuario.id == null} ? @{/gestionar} : @{/guardarUsuarioEditado}"
               th:object="${usuario}"
               class="form-group">
             <!--DMS envia a distinto endpoint si estoy creando un usuario nuevo o si es una modificacion-->
-            <input type="hidden" th:field="*{idUsuario}"/>
+            <input type="hidden" th:field="*{id}"/>
             <div class="card-header ">
                 <label th:if="${usuario.username ==null}">Nuevo usuario</label>
                 <label th:if="${usuario.username !=null}">Edición de usuario</label>

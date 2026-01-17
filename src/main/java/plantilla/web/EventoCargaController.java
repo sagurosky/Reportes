@@ -42,7 +42,11 @@ public class EventoCargaController {
     @GetMapping("/")
     public String listarEventos(Model model) {
         List<EventoCarga> eventos = eventoCargaRepository.findAll();
-        eventos.sort(Comparator.comparing(EventoCarga::getFecha).reversed());
+
+        eventos.sort(Comparator.comparing(
+                EventoCarga::getFecha,
+                Comparator.nullsLast(Comparator.naturalOrder())
+        ).reversed());
 
         model.addAttribute("eventos", eventos);
         return "eventos/lista"; // 👈 plantilla Thymeleaf
@@ -56,10 +60,7 @@ public class EventoCargaController {
         EventoCarga e = eventoCargaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Evento no encontrado"));
 
-        log.info("ESTADO endpoint -> id: {}, ini: {}, fin: {}",
-                e.getId(),
-                e.getIdStockInicial(),
-                e.getIdStockFinal());
+
 
         Map<String, Object> response = new HashMap<>();
         response.put("estado", e.getEstado());
@@ -68,6 +69,7 @@ public class EventoCargaController {
         response.put("porcentaje", e.getPorcentaje());
         response.put("idStockInicial", e.getIdStockInicial());
         response.put("idStockFinal", e.getIdStockFinal());
+        response.put("id", e.getId());
 
         return ResponseEntity.ok(response);
     }

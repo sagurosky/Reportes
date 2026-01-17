@@ -1,21 +1,29 @@
 package plantilla.dominio;
 
-
 import lombok.Data;
-
 import javax.persistence.*;
+
 @Data
 @Entity
-@Table(name = "sucursales")
+@Table(
+        name = "sucursales",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = "id_deposito")
+        }
+)
 public class Sucursal {
 
     @Id
-    private Long idDeposito;   // viene del archivo (NO AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;   // ID interno del sistema
 
-    @Column(unique = true)
+    @Column(name = "id_deposito", nullable = false)
+    private Long idDeposito;
+
+    @Column(name = "cod_deposito", nullable = false)
     private String codDeposito;
 
-    private String nombre;     // “Depósito” en el archivo
+    private String nombre;
 
-    private boolean inhabilitado = false;  // opcional
+    private boolean inhabilitado = false;
 }

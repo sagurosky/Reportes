@@ -12,7 +12,11 @@ public interface SucursalRepository extends JpaRepository<Sucursal, Long> {
 
     Optional<Sucursal> findByCodDeposito(String codDeposito);
 
-    Optional<Sucursal> findByIdDeposito(Long idDeposito);
+    Optional<Sucursal> findById(Long id);
+
+
+    //Optional<Sucursal> findByIdDeposito(Long idDeposito);
+    List<Sucursal> findAllByIdDeposito(Long idDeposito);
 
     Optional<Sucursal> findByNombreIgnoreCase(String nombre);
 

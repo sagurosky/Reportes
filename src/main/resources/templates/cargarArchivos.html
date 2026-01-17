@@ -96,15 +96,43 @@
                     </div>
                 </div>
             </div>
+            <div class="mb-4 row">
+                <div class="col-md-6 mt-3 mt-md-0">
+                    <label for="observaciones" class="form-label fw-semibold">
+                        Observaciones
+                    </label>
+                    <textarea id="observaciones"
+                              class="form-control"
+                              rows="3"
+                              placeholder="Ingrese observaciones sobre la carga (opcional)"></textarea>
+                </div>
+            </div>
 
             <!-- Dropzone -->
-            <form action="/subirArchivosExcel" class="dropzone text-center" id="miDropzone">
+            <form action="/subirArchivosExcelS3" class="dropzone text-center" id="miDropzone">
 
                 <div class="dz-message needsclick">
                     <i class="bi bi-cloud-arrow-up display-4 text-primary"></i>
                     <p class="mt-2">Suelta tus archivos aquí o haz clic para seleccionarlos</p>
                 </div>
             </form>
+
+
+
+            <div id="estadoCarga" class="mt-4" style="display:none;">
+                <span id="estadoBadge" class="badge bg-warning text-dark">PROCESANDO</span>
+
+                <div class="progress mt-2">
+                    <div id="barraProgreso"
+                         class="progress-bar"
+                         role="progressbar"
+                         style="width:0%">
+                        0%
+                    </div>
+                </div>
+            </div>
+
+
 
             <div class="mt-4">
                 <label class="fw-semibold mb-2">📄 Resultados:</label>
@@ -138,7 +166,8 @@
     Dropzone.autoDiscover = false;
 
     const dz = new Dropzone("#miDropzone", {
-      url: "/subirArchivosExcel",
+    //url: "/subirArchivosExcel",
+      url: "/subirArchivosExcelS3",
       method: "post",
       paramName: "file",
       autoProcessQueue: false,
@@ -188,22 +217,40 @@
         // Adjuntar sucursalId en el envío
         this.on("sending", (file, xhr, formData) => {
 
-          const fechaStock = document.getElementById("fechaStock").value;
+             const fechaStock = document.getElementById("fechaStock").value;
+            const observaciones = document.getElementById("observaciones").value;
 
-          formData.append("fechaStock", fechaStock);
+            formData.append("fechaStock", fechaStock);
+            formData.append("observaciones", observaciones);
+            document.getElementById("observaciones").value="";
         });
 
         // ✅ éxito
         this.on("success", (file, response) => {
           Swal.close();
-          const msg = (response && response.mensaje) ? response.mensaje : "✅ Archivo procesado correctamente.";
+           if (response && response.eventoId) {
+                iniciarPollingEvento(response.eventoId,file.name);
+            }
+          const msg = response?.mensaje ?? "Archivo recibido. Procesando...";
           document.getElementById("resultado").textContent += msg + "\n";
 
-          const progress = file.previewElement.querySelector("[data-dz-uploadprogress]");
-          if (progress) progress.style.width = "100%";
 
-          setTimeout(() => this.removeFile(file), 800);
         });
+
+
+    /*    this.on("success", (file, response) => {
+            Swal.close();
+
+            if (response && response.eventoId) {
+                iniciarPollingEvento(response.eventoId,file.name);
+            }
+
+            const msg = response?.mensaje ?? "Archivo recibido. Procesando...";
+            document.getElementById("resultado").textContent += msg + "\n";
+        });*/
+
+
+
 
         this.on("error", (file, errorMessage, xhr) => {
           Swal.close();
@@ -221,6 +268,74 @@
         });
       }
     });
+
+
+
+
+function iniciarPollingEvento(eventoId, nombreArchivo) {
+
+    const INTERVALO = 4000;
+    const badge = document.getElementById("estadoBadge");
+    const barra = document.getElementById("barraProgreso");
+    const contenedor = document.getElementById("estadoCarga");
+    const resultado = document.getElementById("resultado");
+
+    contenedor.style.display = "block";
+
+    const timer = setInterval(() => {
+
+        fetch(`/eventosCarga/${eventoId}/estado`)
+            .then(r => r.json())
+            .then(data => {
+
+                // Estado
+                badge.textContent = data.estado;
+                badge.className = "badge";
+
+                if (data.estado === "COMPLETADO") {
+                    badge.classList.add("bg-success");
+                } else if (data.estado === "FALLIDO") {
+                    badge.classList.add("bg-danger");
+                } else {
+                    badge.classList.add("bg-warning", "text-dark");
+                }
+
+                // Progreso
+                barra.style.width = data.porcentaje + "%";
+                barra.textContent = data.porcentaje + "%";
+
+                // Fin exitoso
+                if (data.estado === "COMPLETADO") {
+                    clearInterval(timer);
+
+                    // Ocultar barra
+                    contenedor.style.display = "none";
+
+                    // Mensaje final
+                    resultado.textContent +=
+                        `✅ El archivo "${nombreArchivo}" se cargó correctamente.\n`;
+                }
+
+                // Fin con error
+                if (data.estado === "FALLIDO") {
+                    clearInterval(timer);
+
+                    contenedor.style.display = "none";
+
+                    resultado.textContent +=
+                        `❌ Error al procesar el archivo "${nombreArchivo}".\n`;
+                }
+
+            })
+            .catch(err => {
+                console.error("Error polling evento", eventoId, err);
+            });
+
+    }, INTERVALO);
+}
+
+
+
 </script>
 
 

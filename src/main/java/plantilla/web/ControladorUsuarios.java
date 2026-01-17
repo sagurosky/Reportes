@@ -65,10 +65,15 @@ public class ControladorUsuarios {
 
         }
 
-        Rol rol = new Rol();
-        rol.setNombre(rolRadio);
-        usuario.setInhabilitado(Boolean.FALSE);
+
+        Rol rol = rolDao.findByNombre(rolRadio)
+                .orElseThrow(() -> new IllegalStateException("Rol inexistente: " + rolRadio));
+
         usuario.setRol(rol);
+
+
+
+        usuario.setInhabilitado(Boolean.FALSE);
         usuario.setPassword(EncriptarPassword.encriptarPassword(usuario.getPassword()));
 
         usuarioService.guardar(usuario);
@@ -95,13 +100,13 @@ public class ControladorUsuarios {
             @ModelAttribute("usuario") Usuario usuarioReq,
             Errors errores) {
 
-        Usuario usuarioOriginal = usuarioDao.findById(usuarioReq.getIdUsuario()).orElse(null);
+        Usuario usuarioOriginal = usuarioDao.findById(usuarioReq.getId()).orElse(null);
 
         if (usuarioOriginal == null) {
             return "redirect:/gestionUsuarios";
         }
-        if (usuarioOriginal.getIdUsuario() == 1 || usuarioOriginal.getUsername().equals("admin")) {
-            log.info("pp");
+        if (usuarioOriginal.getId() == 1 || usuarioOriginal.getUsername().equals("admin")) {
+
             model.addAttribute("usuario", usuarioOriginal);
             model.addAttribute("rolRadio", usuarioOriginal.getRol().getNombre());
             model.addAttribute("mensaje", "no se puede editar el superusuario");
@@ -118,7 +123,10 @@ public class ControladorUsuarios {
             usuarioOriginal.setPassword(EncriptarPassword.encriptarPassword(usuarioReq.getPassword()));
         }
 
-        usuarioOriginal.getRol().setNombre(rolRadio);
+        Rol nuevoRol = rolDao.findByNombre(rolRadio)
+                .orElseThrow(() -> new IllegalStateException("Rol inexistente: " + rolRadio));
+
+        usuarioOriginal.setRol(nuevoRol);
         usuarioDao.save(usuarioOriginal);
 
         return "redirect:/gestionUsuarios";
@@ -128,8 +136,8 @@ public class ControladorUsuarios {
     public String eliminarUsuario(@PathVariable("idUsuario") Long idUsuario, Model model) {
         Usuario usuario = usuarioDao.findById(idUsuario).orElse(null);
 
-        if (usuario.getIdUsuario() == 1 || usuario.getUsername().equals("admin")) {
-            log.info("pp");
+        if (usuario.getId() == 1 || usuario.getUsername().equals("admin")) {
+
             model.addAttribute("mensaje", "no se puede inhabilitar el superusuario");
             return "redirect:/gestionUsuarios";
         }

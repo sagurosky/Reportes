@@ -14,16 +14,9 @@ import java.util.Optional;
 
 public interface StockHistoricoRepository extends JpaRepository<StockHistorico, Long> {
 
-    @Query("""
-            SELECT s
-            FROM StockHistorico s
-            WHERE s.producto.sku = :sku
-              AND s.sucursal = :sucursal
-            ORDER BY s.fechaStock DESC
-           """)
-    Optional<StockHistorico> findUltimoStockPorSkuYSucursal(
-            @Param("sku") String sku,
-            @Param("sucursal") Sucursal sucursal
+    Optional<StockHistorico> findTopByProducto_SkuAndSucursalOrderByFechaStockDescIdDesc(
+            String sku,
+            Sucursal sucursal
     );
 
     List<StockHistorico> findByProductoAndSucursalOrderByFechaStockAsc(

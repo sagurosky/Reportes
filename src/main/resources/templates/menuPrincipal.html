@@ -162,10 +162,10 @@
                     <i class="bi bi-file-excel"></i>
                     Archivos faltantes
                 </a>
-                <a id="btn-diferencias" class="btn btn-info btn-menu" href="#">
-                    <i class="bi bi-file-diff"></i>
-                    Diferencias
-                </a>
+<!--                <a id="btn-diferencias" class="btn btn-info btn-menu" href="#">-->
+<!--                    <i class="bi bi-file-diff"></i>-->
+<!--                    Diferencias-->
+<!--                </a>-->
                 <a id="btn-reportes" class="btn btn-info btn-menu" href="#">
                     <i class="bi bi-graph-up"></i>
                     Reportes
@@ -202,11 +202,12 @@
         // Configurar los endpoints según el contexto
         const cargarBtn = document.getElementById('btn-cargar');
         const faltantesBtn = document.getElementById('btn-faltantes');
-        const diferenciasBtn = document.getElementById('btn-diferencias');
+     //   const diferenciasBtn = document.getElementById('btn-diferencias');
         const reportesBtn = document.getElementById('btn-reportes');
 
         // Limpiar clases anteriores
-        [cargarBtn, faltantesBtn, diferenciasBtn, reportesBtn].forEach(btn => {
+     //   [cargarBtn, faltantesBtn, diferenciasBtn, reportesBtn].forEach(btn => {
+      [cargarBtn, faltantesBtn,  reportesBtn].forEach(btn => {
             btn.className = 'btn btn-menu'; // base
         });
 
@@ -215,30 +216,30 @@
         if (context === 'stock') {
             cargarBtn.classList.add('stock-1');
             faltantesBtn.classList.add('stock-2');
-            diferenciasBtn.classList.add('stock-3');
-            reportesBtn.classList.add('stock-4');
+         //   diferenciasBtn.classList.add('stock-3');
+            reportesBtn.classList.add('stock-3');
             cargarBtn.href = '/cargarArchivos/stock?color=stock-1';
             faltantesBtn.href = '/faltantes/stock?color=stock-2';
-            diferenciasBtn.href = '/diferencias/stock?color=stock-3';
-            reportesBtn.href = '/reportes/stock?color=stock-4';
+         //   diferenciasBtn.href = '/diferencias/stock?color=stock-3';
+            reportesBtn.href = '/reportes/stock?color=stock-3';
         } else if (context === 'caja') {
             cargarBtn.classList.add('caja-1');
             faltantesBtn.classList.add('caja-2');
-            diferenciasBtn.classList.add('caja-3');
-            reportesBtn.classList.add('caja-4');
+       //     diferenciasBtn.classList.add('caja-3');
+            reportesBtn.classList.add('caja-3');
             cargarBtn.href = '/cargarArchivos/caja?color=caja-1';
             faltantesBtn.href = '/faltantes/caja?color=caja-2';
-            diferenciasBtn.href = '/diferencias/caja?color=caja-3';
-            reportesBtn.href = '/reportes/caja?color=caja-4';
+         //   diferenciasBtn.href = '/diferencias/caja?color=caja-3';
+            reportesBtn.href = '/reportes/caja?color=caja-3';
         } else if (context === 'pedido') {
             cargarBtn.classList.add('pedido-1');
             faltantesBtn.classList.add('pedido-2');
-            diferenciasBtn.classList.add('pedido-3');
-            reportesBtn.classList.add('pedido-4');
+         //   diferenciasBtn.classList.add('pedido-3');
+            reportesBtn.classList.add('pedido-3');
             cargarBtn.href = '/cargarArchivos/pedido?color=pedido-1';
             faltantesBtn.href = '/faltantes/pedido?color=pedido-2';
-            diferenciasBtn.href = '/diferencias/pedido?color=pedido-3';
-            reportesBtn.href = '/reportes/pedido?color=pedido-4';
+          //  diferenciasBtn.href = '/diferencias/pedido?color=pedido-3';
+            reportesBtn.href = '/reportes/pedido?color=pedido-3';
         }
     }
 

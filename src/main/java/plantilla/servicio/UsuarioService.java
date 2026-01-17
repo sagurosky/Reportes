@@ -49,8 +49,8 @@ public class UsuarioService implements UserDetailsService {
 
 
     public void guardar(Usuario usuario) {
-        if (usuario.getIdUsuario() != null) {
-            usuario = usuarioDao.findById(usuario.getIdUsuario()).orElse(null);
+        if (usuario.getId() != null) {
+            usuario = usuarioDao.findById(usuario.getId()).orElse(null);
         }
         usuarioDao.save(usuario);
     }
