@@ -40,6 +40,7 @@ public class StockHistorico {
 
     private Boolean esInicial;
     private Integer diffAnterior;
+    private Boolean nuevoIngreso;
 }
 
 

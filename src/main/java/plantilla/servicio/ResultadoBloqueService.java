@@ -98,10 +98,21 @@ public class ResultadoBloqueService {
             stock.setProducto(producto);
             stock.setSucursal(sucursal);
             stock.setCantidad(cantidad);
+
+            Integer diffAnterior = ultimoOpt.map(StockHistorico::getCantidad).orElse(null);
+            stock.setDiffAnterior(diffAnterior);
+
+// nuevoIngreso = true si cantidad > diffAnterior
+            boolean nuevoIngreso = diffAnterior != null && cantidad > diffAnterior;
+            stock.setNuevoIngreso(nuevoIngreso);
+
+
+
             stock.setFechaStock(fechaStock);
             stock.setFechaCarga(TiempoUtils.ahora());
             stock.setEventoCarga(eventoManaged);
             stock.setEsInicial(productoNuevo);
+
 
             entityManager.persist(stock);
 
