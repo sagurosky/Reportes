@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="plantillas/plantilla::head">
+    <title>Reportes de Stock</title>
+    <meta charset="UTF-8" />
+</head>
+
+<body>
+    <style>
+        body {
+            background: url('/recursos/img8.jpg') no-repeat center center fixed;
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        .card-translucent {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            position: relative;
+            height: 400px;
+        }
+
+        .treemap-container {
+            height: 500px;
+        }
+
+        .filter-section {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* Module color classes */
+        .stock-1 {
+            background-color: #0097a7;
+            color: white;
+        }
+
+        .stock-2 {
+            background-color: #00bcd4;
+            color: white;
+        }
+
+        .stock-3 {
+            background-color: #80deea;
+            color: black;
+        }
+
+        .stock-4 {
+            background-color: #b2ebf2;
+            color: black;
+        }
+
+        .caja-1 {
+            background-color: #ffa726;
+            color: black;
+        }
+
+        .caja-2 {
+            background-color: #ffb74d;
+            color: black;
+        }
+
+        .caja-3 {
+            background-color: #ffcc80;
+            color: black;
+        }
+
+        .caja-4 {
+            background-color: #ffe0b2;
+            color: black;
+        }
+
+        .pedido-1 {
+            background-color: #9575cd;
+            color: white;
+        }
+
+        .pedido-2 {
+            background-color: #b39ddb;
+            color: white;
+        }
+
+        .pedido-3 {
+            background-color: #d1c4e9;
+            color: black;
+        }
+
+        .pedido-4 {
+            background-color: #ede7f6;
+            color: black;
+        }
+
+        /* Accordion styles for stockout table */
+        .accordion-button:not(.collapsed) {
+            background-color: #e7f3ff;
+        }
+
+        .badge-count {
+            font-size: 0.9rem;
+            padding: 5px 10px;
+        }
+
+        .table-stockout {
+            font-size: 0.9rem;
+        }
+
+        .day-header {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .day-header:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+
+    <header th:replace="plantillas/plantilla::header"></header>
+
+    <div class="volver-fijo d-flex justify-content-end px-4 pt-3">
+        <a th:href="@{/menuPrincipal}" class="btn btn-primary btn-lg">
+            <i class="bi bi-arrow-left-circle"></i> Volver
+        </a>
+    </div>
+
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="card shadow-lg border-0 mb-4">
+            <div th:class="|card-header text-center ${colorClase}|">
+                <h2 class="fw-bold mb-0">📊 Dashboard de Análisis de Stock</h2>
+            </div>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="card-translucent">
+            <div class="filter-section">
+                <form method="get" th:action="@{/reportes/stock}" class="row g-3">
+                    <input type="hidden" name="color" th:value="${colorClase}" />
+
+                    <div class="col-md-4">
+                        <label for="sucursalId" class="form-label fw-bold">
+                            <i class="bi bi-building"></i> Sucursal:
+                        </label>
+                        <select id="sucursalId" name="sucursalId" class="form-select">
+                            <option value="">-- Todas las sucursales --</option>
+                            <option th:each="suc : ${sucursales}" th:value="${suc.id}" th:text="${suc.nombre}"
+                                th:selected="${suc.id == sucursalSeleccionada}">
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="fechaInicio" class="form-label fw-bold">
+                            <i class="bi bi-calendar"></i> Fecha Inicio:
+                        </label>
+                        <input type="date" id="fechaInicio" name="fechaInicio" class="form-control"
+                            th:value="${fechaInicio}" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="fechaFin" class="form-label fw-bold">
+                            <i class="bi bi-calendar"></i> Fecha Fin:
+                        </label>
+                        <input type="date" id="fechaFin" name="fechaFin" class="form-control" th:value="${fechaFin}" />
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-search"></i> Filtrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Chart 1: Stock Evolution Line Chart -->
+            <div class="col-lg-6 mb-4">
+                <div class="card-translucent">
+                    <h4 class="text-white mb-3">
+                        <i class="bi bi-graph-up"></i> Evolución de Stock por Ambiente
+                    </h4>
+                    <div class="chart-container">
+                        <canvas id="stockEvolutionChart"></canvas>
+                    </div>
+                    <div class="text-center">
+                        <button id="btnDrillDown" class="btn btn-sm btn-info" style="display:none;">
+                            <i class="bi bi-arrow-left"></i> Volver a Ambiente
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart 2: Treemap -->
+            <div class="col-lg-6 mb-4">
+                <div class="card-translucent">
+                    <h4 class="text-white mb-3">
+                        <i class="bi bi-diagram-3"></i> Mapa de Inventario
+                    </h4>
+                    <div class="chart-container treemap-container">
+                        <canvas id="treemapChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 3: Stockout Analysis Table (Accordion) -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card-translucent">
+                    <h4 class="text-white mb-3">
+                        <i class="bi bi-exclamation-triangle"></i> Análisis de Quiebre de Stock (Productos en Cero)
+                    </h4>
+                    <div class="accordion" id="stockoutAccordion">
+                        <div th:each="day, iterStat : ${stockoutsByDay}" class="accordion-item">
+                            <h2 class="accordion-header" th:id="'heading' + ${iterStat.index}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    th:attr="data-bs-target='#collapse' + ${iterStat.index}">
+                                    <i class="bi bi-circle-fill me-2" style="color: #28a745;"></i>
+                                    <strong th:text="${day.diaNombre}">Día</strong>
+                                    <span class="badge bg-danger badge-count ms-3"
+                                        th:text="${day.productoCount} + ' productos'">
+                                        0 productos
+                                    </span>
+                                </button>
+                            </h2>
+                            <div th:id="'collapse' + ${iterStat.index}" class="accordion-collapse collapse"
+                                th:attr="aria-labelledby='heading' + ${iterStat.index}">
+                                <div class="accordion-body p-0">
+                                    <div th:if="${day.productoCount > 0}">
+                                        <table class="table table-hover table-stockout mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>SKU</th>
+                                                    <th>DESCRIPCIÓN</th>
+                                                    <th>AMBIENTE</th>
+                                                    <th>FAMILIA</th>
+                                                    <th>SUCURSAL</th>
+                                                    <th>FECHA</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr th:each="producto : ${day.productos}">
+                                                    <td th:text="${producto.sku}">SKU</td>
+                                                    <td th:text="${producto.descripcion}">Descripción</td>
+                                                    <td th:text="${producto.ambiente}">Ambiente</td>
+                                                    <td th:text="${producto.familia}">Familia</td>
+                                                    <td th:text="${producto.sucursal}">Sucursal</td>
+                                                    <td
+                                                        th:text="${#temporals.format(producto.fechaStock, 'dd/MM/yyyy')}">
+                                                        Fecha</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div th:if="${day.productoCount == 0}" class="p-3 text-center text-muted">
+                                        <i class="bi bi-check-circle"></i> No hay productos sin stock en este día
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 4: Consumption vs Stock Bar Chart -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card-translucent">
+                    <h4 class="text-white mb-3">
+                        <i class="bi bi-bar-chart"></i> Comparativa: Consumo vs Stock Actual
+                    </h4>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="consumoVsStockChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.0/dist/chartjs-chart-treemap.min.js"></script>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        // Get filter parameters from page
+        const urlParams = new URLSearchParams(window.location.search);
+        const sucursalId = urlParams.get('sucursalId') || '';
+        const fechaInicio = /*[[${fechaInicio}]]*/ '';
+        const fechaFin = /*[[${fechaFin}]]*/ '';
+
+        // Data containers (will be populated via AJAX)
+        let stockEvolutionData = [];
+        let treemapData = [];
+        let consumoVsStockData = [];
+        let stockoutsData = [];
+
+        // Chart 1: Stock Evolution Line Chart with Drill-Down
+        let stockChart;
+        let currentView = 'ambiente';
+        let selectedAmbiente = null;
+
+        function initStockEvolutionChart() {
+            const ctx = document.getElementById('stockEvolutionChart').getContext('2d');
+
+            // Group data by categoria (ambiente initially)
+            const groupedData = {};
+            stockEvolutionData.forEach(item => {
+                if (!groupedData[item.categoria]) {
+                    groupedData[item.categoria] = [];
+                }
+                groupedData[item.categoria].push({
+                    x: item.fecha,
+                    y: item.cantidad
+                });
+            });
+
+            const datasets = Object.keys(groupedData).map((categoria, index) => {
+                const colors = [
+                    '#0097a7', '#ff9800', '#7e57c2', '#4caf50', '#e91e63',
+                    '#00bcd4', '#ffa726', '#9575cd', '#66bb6a', '#ec407a'
+                ];
+                return {
+                    label: categoria,
+                    data: groupedData[categoria],
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '33',
+                    tension: 0.4,
+                    fill: false
+                };
+            });
+
+            stockChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Stock por Ambiente a lo largo del tiempo'
+                        },
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' unidades';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'dd/MM'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Fecha'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Cantidad'
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0 && currentView === 'ambiente') {
+                            const datasetIndex = elements[0].datasetIndex;
+                            const ambiente = stockChart.data.datasets[datasetIndex].label;
+                            drillDownToFamilia(ambiente);
+                        }
+                    }
+                }
+            });
+        }
+
+        function drillDownToFamilia(ambiente) {
+            // This would require an AJAX call to fetch familia-level data
+            // For now, show a message
+            selectedAmbiente = ambiente;
+            currentView = 'familia';
+            document.getElementById('btnDrillDown').style.display = 'inline-block';
+
+            // Update chart title
+            stockChart.options.plugins.title.text = 'Stock por Familia en ' + ambiente;
+            stockChart.update();
+
+            console.log('Drill-down para ambiente:', ambiente);
+            // In production, make AJAX call here to reload familia data
+        }
+
+        document.getElementById('btnDrillDown').addEventListener('click', () => {
+            currentView = 'ambiente';
+            selectedAmbiente = null;
+            document.getElementById('btnDrillDown').style.display = 'none';
+            stockChart.options.plugins.title.text = 'Stock por Ambiente a lo largo del tiempo';
+            stockChart.update();
+        });
+
+        // Chart 2: Treemap with Drill-down
+        let treemapChart;
+        let treemapCurrentLevel = 'ambiente'; // ambiente, familia, nivel3, nivel4
+        let treemapHistory = []; // stack of { level, filter }
+
+        function initTreemapChart() {
+            renderTreemap('ambiente', {});
+        }
+
+        function renderTreemap(level, filters) {
+            const ctx = document.getElementById('treemapChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (treemapChart) {
+                treemapChart.destroy();
+            }
+
+            // 1. Filter and Group Data
+            const groupedData = {};
+
+            // Define hierarchy levels
+            // Group by the current level property
+            treemapData.forEach(item => {
+                // Apply filters
+                if (filters.ambiente && item.ambiente !== filters.ambiente) return;
+                if (filters.familia && item.familia !== filters.familia) return;
+                if (filters.nivel3 && item.nivel3 !== filters.nivel3) return;
+
+                // Determine grouping key based on current level
+                let key;
+                if (level === 'ambiente') key = item.ambiente || 'Sin Ambiente';
+                else if (level === 'familia') key = item.familia || 'Sin Familia';
+                else if (level === 'nivel3') key = item.nivel3 || 'Sin Nivel 3';
+                else if (level === 'nivel4') key = item.nivel4 || 'Sin Nivel 4';
+                else key = 'Otros';
+
+                if (!groupedData[key]) {
+                    groupedData[key] = { label: key, value: 0 };
+                }
+                groupedData[key].value += (item.cantidad || 0);
+            });
+
+            const flatData = Object.values(groupedData).map(d => ({
+                label: d.label,
+                value: d.value,
+                // Assign a color based on label hash to consistenly color same items
+                colorIndex: Math.abs(d.label.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0) | 0, 0))
+            }));
+
+            // Colors palette
+            const colors = [
+                '#0097a7', '#ff9800', '#7e57c2', '#4caf50', '#e91e63',
+                '#00bcd4', '#ffa726', '#9575cd', '#66bb6a', '#ec407a',
+                '#5c6bc0', '#26a69a', '#ef5350', '#78909c', '#8d6e63'
+            ];
+
+            // 2. Setup Chart
+            treemapChart = new Chart(ctx, {
+                type: 'treemap',
+                data: {
+                    datasets: [{
+                        tree: flatData,
+                        key: 'value',
+                        groups: ['label'],
+                        spacing: 1,
+                        borderWidth: 1,
+                        borderColor: '#fff',
+                        backgroundColor: (ctx) => {
+                            if (ctx.type !== 'data' || !ctx.raw || !ctx.raw._data) return 'transparent';
+                            const item = flatData.find(d => d.label === ctx.raw._data.label);
+                            if (item) {
+                                return colors[item.colorIndex % colors.length];
+                            }
+                            return '#ccc';
+                        },
+                        labels: {
+                            display: true,
+                            formatter: (ctx) => {
+                                if (ctx.type !== 'data' || !ctx.raw || !ctx.raw._data) return '';
+                                return ctx.raw._data.label + '\n' + ctx.raw.v.toLocaleString();
+                            },
+                            color: 'white',
+                            font: { size: 12, weight: 'bold' }
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: getTreemapTitle(level, filters)
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: (ctx) => ctx[0].raw._data.label,
+                                label: (ctx) => 'Cantidad: ' + ctx.raw.v.toLocaleString()
+                            }
+                        },
+                        legend: { display: false }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const dataIndex = elements[0].index;
+                            const datasetIndex = elements[0].datasetIndex;
+                            // Chart.js treemap internal structure is complex, use _data from raw if available
+                            const raw = treemapChart.data.datasets[datasetIndex].tree[dataIndex];
+                            if (raw) {
+                                handleTreemapClick(raw.label);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function getTreemapTitle(level, filters) {
+            let title = 'Distribución de Stock';
+            if (level === 'ambiente') return title + ' por Ambiente';
+            if (level === 'familia') return title + ' por Familia (' + filters.ambiente + ')';
+            if (level === 'nivel3') return title + ' por Nivel 3 (' + filters.familia + ')';
+            if (level === 'nivel4') return title + ' por Nivel 4 (' + filters.nivel3 + ')';
+            return title;
+        }
+
+        // We need a global variable to track current active filters for the current view
+        let treemapActiveFilters = {};
+
+        function handleTreemapClick(selectedLabel) {
+            const nextLevelMap = {
+                'ambiente': 'familia',
+                'familia': 'nivel3',
+                'nivel3': 'nivel4',
+                'nivel4': null
+            };
+            const nextLevel = nextLevelMap[treemapCurrentLevel];
+
+            if (nextLevel) {
+                // Push current state
+                treemapHistory.push({
+                    level: treemapCurrentLevel,
+                    filters: { ...treemapActiveFilters }
+                });
+
+                // Update filters
+                treemapActiveFilters[treemapCurrentLevel] = selectedLabel;
+                treemapCurrentLevel = nextLevel;
+
+                updateTreemapControls(true);
+                renderTreemap(nextLevel, treemapActiveFilters);
+            }
+        }
+
+        function treemapGoBack() {
+            if (treemapHistory.length > 0) {
+                const prevState = treemapHistory.pop();
+                treemapCurrentLevel = prevState.level;
+                treemapActiveFilters = prevState.filters;
+
+                renderTreemap(treemapCurrentLevel, treemapActiveFilters);
+
+                if (treemapHistory.length === 0) {
+                    updateTreemapControls(false);
+                }
+            }
+        }
+
+        function updateTreemapControls(show) {
+            let container = document.getElementById('treemapControls');
+            if (!container) {
+                // Create controls if not exist
+                const card = document.querySelector('.treemap-container').parentElement;
+                container = document.createElement('div');
+                container.id = 'treemapControls';
+                container.className = 'mt-2 text-center';
+                container.innerHTML = `
+                    <button class="btn btn-sm btn-secondary" onclick="treemapGoBack()">
+                        <i class="bi bi-arrow-up-circle"></i> Subir Nivel
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="treemapReset()">
+                        <i class="bi bi-x-circle"></i> Resetear
+                    </button>
+                `;
+                card.appendChild(container); // Append to card
+            }
+            container.style.display = show ? 'block' : 'none';
+        }
+
+        function treemapReset() {
+            treemapHistory = [];
+            treemapCurrentLevel = 'ambiente';
+            treemapActiveFilters = {};
+            renderTreemap('ambiente', {});
+            updateTreemapControls(false);
+        }
+
+        // Chart 4: Consumption vs Stock Bar Chart
+        function initConsumoVsStockChart() {
+            const ctx = document.getElementById('consumoVsStockChart').getContext('2d');
+
+            const labels = consumoVsStockData.map(item => item.fecha);
+            const consumoData = consumoVsStockData.map(item => item.consumo);
+            const stockData = consumoVsStockData.map(item => item.stockActual);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Consumo',
+                            data: consumoData,
+                            backgroundColor: '#ff6384',
+                            borderColor: '#ff6384',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Stock Actual',
+                            data: stockData,
+                            backgroundColor: '#36a2eb',
+                            borderColor: '#36a2eb',
+                            borderWidth: 1,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Consumo vs Stock Disponible'
+                        },
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Fecha'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Consumo'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Stock Actual'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // AJAX Data Loading Functions
+        function showLoading(containerId) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="d-flex justify-content-center align-items-center h-100">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function showError(containerId, message) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="alert alert-danger m-3" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i> ${message}
+                    </div>
+                `;
+            }
+        }
+
+        async function loadStockEvolution() {
+            try {
+                const params = new URLSearchParams({ fechaInicio, fechaFin });
+                if (sucursalId) params.append('sucursalId', sucursalId);
+
+                const response = await fetch(`/api/reportes/stock/evolution?${params}`);
+                if (!response.ok) throw new Error('Error en la respuesta');
+
+                stockEvolutionData = await response.json();
+                initStockEvolutionChart();
+            } catch (error) {
+                console.error('Error loading stock evolution:', error);
+                showError('stockEvolutionChart', 'Error al cargar evolución de stock');
+            }
+        }
+
+        async function loadTreemapData() {
+            try {
+                const params = new URLSearchParams();
+                if (sucursalId) params.append('sucursalId', sucursalId);
+
+                const response = await fetch(`/api/reportes/stock/treemap?${params}`);
+                if (!response.ok) throw new Error('Error en la respuesta');
+
+                treemapData = await response.json();
+                initTreemapChart();
+            } catch (error) {
+                console.error('Error loading treemap:', error);
+                showError('treemapChart', 'Error al cargar mapa de inventario');
+            }
+        }
+
+        async function loadStockouts() {
+            try {
+                const params = new URLSearchParams({ fechaInicio });
+                if (sucursalId) params.append('sucursalId', sucursalId);
+
+                const response = await fetch(`/api/reportes/stock/stockouts?${params}`);
+                if (!response.ok) throw new Error('Error en la respuesta');
+
+                stockoutsData = await response.json();
+                renderStockoutsTable();
+            } catch (error) {
+                console.error('Error loading stockouts:', error);
+                document.getElementById('stockoutAccordion').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i> Error al cargar análisis de quiebres
+                    </div>
+                `;
+            }
+        }
+
+        async function loadConsumoVsStock() {
+            try {
+                const params = new URLSearchParams({ fechaInicio, fechaFin });
+                if (sucursalId) params.append('sucursalId', sucursalId);
+
+                const response = await fetch(`/api/reportes/stock/consumo-vs-stock?${params}`);
+                if (!response.ok) throw new Error('Error en la respuesta');
+
+                consumoVsStockData = await response.json();
+                initConsumoVsStockChart();
+            } catch (error) {
+                console.error('Error loading consumo vs stock:', error);
+                showError('consumoVsStockChart', 'Error al cargar consumo vs stock');
+            }
+        }
+
+        function renderStockoutsTable() {
+            const accordion = document.getElementById('stockoutAccordion');
+            accordion.innerHTML = '';
+
+            stockoutsData.forEach((day, index) => {
+                const item = document.createElement('div');
+                item.className = 'accordion-item';
+                item.innerHTML = `
+                    <h2 class="accordion-header" id="heading${index}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapse${index}">
+                            <i class="bi bi-circle-fill me-2" style="color: #28a745;"></i>
+                            <strong>${day.diaNombre}</strong>
+                            <span class="badge bg-danger badge-count ms-3">
+                                ${day.productoCount} productos
+                            </span>
+                        </button>
+                    </h2>
+                    <div id="collapse${index}" class="accordion-collapse collapse"
+                        aria-labelledby="heading${index}">
+                        <div class="accordion-body p-0">
+                            ${day.productoCount > 0 ? `
+                                <table class="table table-hover table-stockout mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>DESCRIPCIÓN</th>
+                                            <th>AMBIENTE</th>
+                                            <th>FAMILIA</th>
+                                            <th>SUCURSAL</th>
+                                            <th>FECHA</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${day.productos.map(p => `
+                                            <tr>
+                                                <td>${p.sku}</td>
+                                                <td>${p.descripcion}</td>
+                                                <td>${p.ambiente}</td>
+                                                <td>${p.familia}</td>
+                                                <td>${p.sucursal}</td>
+                                                <td>${new Date(p.fechaStock).toLocaleDateString('es-AR')}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            ` : `
+                                <div class="p-3 text-center text-muted">
+                                    <i class="bi bi-check-circle"></i> No hay productos sin stock en este día
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+                accordion.appendChild(item);
+            });
+        }
+
+        // Initialize all charts on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Show loading spinners
+            showLoading('stockEvolutionChart');
+            showLoading('treemapChart');
+            showLoading('consumoVsStockChart');
+
+            // Load all data in parallel
+            Promise.all([
+                loadStockEvolution(),
+                loadTreemapData(),
+                loadStockouts(),
+                loadConsumoVsStock()
+            ]).then(() => {
+                console.log('✅ All data loaded');
+            }).catch(error => {
+                console.error('❌ Error loading dashboard data:', error);
+            });
+        });
+        /*]]>*/
+    </script>
+
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>

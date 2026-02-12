@@ -1,32 +1,18 @@
 package plantilla.web;
 
-
-import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.hssf.OldExcelFormatException;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import plantilla.dominio.EventoCarga;
-import plantilla.dominio.Sucursal;
-import plantilla.repositorios.EventoCargaRepository;
-import plantilla.repositorios.SucursalRepository;
-import plantilla.servicio.EventoCargaService;
-import plantilla.servicio.StockService;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import plantilla.dominio.EventoCarga;
+import plantilla.servicio.EventoCargaService;
+import plantilla.repositorios.EventoCargaRepository;
+
 import java.util.*;
-@Slf4j
+
 @Controller
 @RequestMapping("/eventosCarga")
 public class EventoCargaController {
@@ -45,8 +31,7 @@ public class EventoCargaController {
 
         eventos.sort(Comparator.comparing(
                 EventoCarga::getFecha,
-                Comparator.nullsLast(Comparator.naturalOrder())
-        ).reversed());
+                Comparator.nullsLast(Comparator.naturalOrder())).reversed());
 
         model.addAttribute("eventos", eventos);
         return "eventos/lista"; // 👈 plantilla Thymeleaf
@@ -60,8 +45,6 @@ public class EventoCargaController {
         EventoCarga e = eventoCargaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Evento no encontrado"));
 
-
-
         Map<String, Object> response = new HashMap<>();
         response.put("estado", e.getEstado());
         response.put("procesados", e.getProcesados());
@@ -74,8 +57,3 @@ public class EventoCargaController {
         return ResponseEntity.ok(response);
     }
 }
-
-
-
-    
-

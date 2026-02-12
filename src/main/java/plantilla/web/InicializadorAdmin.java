@@ -5,8 +5,6 @@
  */
 package plantilla.web;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -15,6 +13,7 @@ import plantilla.datos.UsuarioDao;
 import plantilla.dominio.Rol;
 import plantilla.dominio.Usuario;
 import plantilla.util.EncriptarPassword;
+
 @Component
 public class InicializadorAdmin implements CommandLineRunner {
 
@@ -29,7 +28,7 @@ public class InicializadorAdmin implements CommandLineRunner {
 
         // 1. Inicializar roles
         Rol rolAdmin = crearRolSiNoExiste("ROLE_ADMIN");
-        Rol rolOp    = crearRolSiNoExiste("ROLE_OP");
+        crearRolSiNoExiste("ROLE_OP");
 
         // 2. Crear admin solo si no hay usuarios
         if (usuarioDao.count() == 0) {

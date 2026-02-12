@@ -1,17 +1,19 @@
 package plantilla.dominio;
 
-
 import lombok.Data;
 
 import javax.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @Entity
-@Table(name = "stock_historico")
+@Table(name = "stock_historico", indexes = {
+        @Index(name = "idx_stock_fecha", columnList = "fechaStock"),
+        @Index(name = "idx_stock_producto", columnList = "producto_id"),
+        @Index(name = "idx_stock_sucursal", columnList = "sucursal_id"),
+        @Index(name = "idx_stock_composite", columnList = "fechaStock, sucursal_id, producto_id")
+})
 public class StockHistorico {
 
     @Id
@@ -28,19 +30,16 @@ public class StockHistorico {
     private Sucursal sucursal;
 
     // Datos del archivo
-    private LocalDate fechaStock;       // Fecha ingresada por el usuario
-    private Integer cantidad;           // stock real del archivo
+    private LocalDate fechaStock; // Fecha ingresada por el usuario
+    private Integer cantidad; // stock real del archivo
 
-    private LocalDateTime fechaCarga;   // cuándo el usuario subió el archivo
+    private LocalDateTime fechaCarga; // cuándo el usuario subió el archivo
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "evento_carga_id", nullable = false)
     private EventoCarga eventoCarga;
 
-
     private Boolean esInicial;
     private Integer diffAnterior;
     private Boolean nuevoIngreso;
 }
-
-

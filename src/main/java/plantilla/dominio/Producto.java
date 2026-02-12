@@ -1,11 +1,8 @@
 package plantilla.dominio;
 
-
 import lombok.Data;
 
 import javax.persistence.*;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @Entity
@@ -17,7 +14,7 @@ public class Producto {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String sku;           // clave única global
+    private String sku; // clave única global
 
     private String masterId;
     private String descripcion;

@@ -2,7 +2,6 @@ package plantilla.web;
 
 import javax.validation.Valid;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -16,7 +15,6 @@ import plantilla.servicio.UsuarioService;
 import plantilla.util.EncriptarPassword;
 
 @Controller
-@Slf4j
 public class ControladorUsuarios {
 
     @Autowired
@@ -30,7 +28,7 @@ public class ControladorUsuarios {
 
     @GetMapping("/gestionUsuarios")
     public String gestionarUsuarios(Model model) {
-//        var usuarios = usuarioService.listarUsuariosHabilitados();
+        // var usuarios = usuarioService.listarUsuariosHabilitados();
         var usuarios = usuarioService.listarUsuariosTodos();
 
         model.addAttribute("pantalla", "Menú usuarios");
@@ -45,7 +43,6 @@ public class ControladorUsuarios {
         return "crearUsuario";
     }
 
-
     @PostMapping("/gestionar")
     public String gestionar(
             @Valid @ModelAttribute("usuario") Usuario usuario,
@@ -53,7 +50,7 @@ public class ControladorUsuarios {
             @RequestParam("rolRadio") String rolRadio,
             Model model) {
 
-//        Usuario usuarioExistente = usuarioDao.findByUsername(usuario.getUsername());
+        // Usuario usuarioExistente = usuarioDao.findByUsername(usuario.getUsername());
         Usuario usuarioExistente = usuarioDao.traerUsuarioHabilitadoPorNombre(usuario.getUsername());
 
         // Solo bloqueamos si el usuario ya existe Y es una creación
@@ -65,13 +62,10 @@ public class ControladorUsuarios {
 
         }
 
-
         Rol rol = rolDao.findByNombre(rolRadio)
                 .orElseThrow(() -> new IllegalStateException("Rol inexistente: " + rolRadio));
 
         usuario.setRol(rol);
-
-
 
         usuario.setInhabilitado(Boolean.FALSE);
         usuario.setPassword(EncriptarPassword.encriptarPassword(usuario.getPassword()));

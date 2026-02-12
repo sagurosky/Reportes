@@ -1,10 +1,7 @@
 package plantilla.repositorios;
 
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import plantilla.dominio.Producto;
-import plantilla.dominio.StockHistorico;
-import plantilla.dominio.Sucursal;
 
 import java.util.Optional;
 

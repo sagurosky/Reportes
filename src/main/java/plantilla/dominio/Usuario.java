@@ -1,10 +1,11 @@
 package plantilla.dominio;
 
 import java.io.Serializable;
-import java.util.List;
+
 import javax.persistence.*;
 import javax.validation.constraints.NotEmpty;
 import lombok.*;
+
 @Data
 @Entity
 @Table(name = "usuarios")
@@ -31,4 +32,3 @@ public class Usuario implements Serializable {
     @JoinColumn(name = "rol_id", nullable = false)
     private Rol rol;
 }
-

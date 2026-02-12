@@ -2,10 +2,7 @@ package plantilla.servicio;
 
 import java.util.Collections;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.jpa.repository.Query;
-import plantilla.datos.UsuarioDao;
-import plantilla.dominio.Usuario;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -15,8 +12,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import plantilla.datos.UsuarioDao;
+import plantilla.dominio.Usuario;
+
 @Service("userDetailsService") // Necesario para Spring Security
-@Slf4j
 public class UsuarioService implements UserDetailsService {
 
     @Autowired
@@ -40,13 +39,11 @@ public class UsuarioService implements UserDetailsService {
                 usuario.getUsername(),
                 usuario.getPassword(),
                 habilitado, // enabled
-                true,       // accountNonExpired
-                true,       // credentialsNonExpired
-                true,       // accountNonLocked
-                Collections.singletonList(authority)
-        );
+                true, // accountNonExpired
+                true, // credentialsNonExpired
+                true, // accountNonLocked
+                Collections.singletonList(authority));
     }
-
 
     public void guardar(Usuario usuario) {
         if (usuario.getId() != null) {
@@ -55,10 +52,11 @@ public class UsuarioService implements UserDetailsService {
         usuarioDao.save(usuario);
     }
 
-//    @Query("select * from usuario where inhabilitado='false'")
+    // @Query("select * from usuario where inhabilitado='false'")
     public List<Usuario> listarUsuariosHabilitados() {
         return usuarioDao.findByInhabilitadoFalse();
     }
+
     public List<Usuario> listarUsuariosTodos() {
         return usuarioDao.findAll();
     }

@@ -23,13 +23,13 @@ public class StockAsyncService {
     private EventoCargaService eventoCargaService;
     @Autowired
     S3Service s3Service;
+
     @Async
     public void procesarAsync(
             Sheet sheet,
             String nombreArchivo,
             LocalDate fechaStock,
-            Long eventoId
-    ) {
+            Long eventoId) {
         try {
             log.info("🚀 Inicio procesamiento async evento {}", eventoId);
 
@@ -39,11 +39,9 @@ public class StockAsyncService {
                     sheet,
                     nombreArchivo,
                     fechaStock,
-                    evento
-            );
+                    evento);
 
-            EventoCarga eventoFinal =
-                    eventoCargaService.buscarPorId(eventoId);
+            EventoCarga eventoFinal = eventoCargaService.buscarPorId(eventoId);
 
             eventoCargaService.marcarCompletado(eventoFinal);
 
@@ -62,21 +60,54 @@ public class StockAsyncService {
 
         EventoCarga evento = eventoCargaService.buscarPorId(eventoId);
 
-        try (InputStream is = s3Service.descargar(evento.getRutaS3())) {
+        try (InputStream is = s3Service.descargar(evento.getRutaS3());
+                Workbook workbook = new XSSFWorkbook(is)) {
 
-            Workbook workbook = new XSSFWorkbook(is);
             Sheet sheet = workbook.getSheetAt(0);
 
             stockService.procesarStock(
                     sheet,
                     evento.getNombreArchivo(),
                     fechaStock,
-                    evento
-            );
+                    evento);
 
         } catch (Exception e) {
             eventoCargaService.marcarFallido(eventoId, e.getMessage());
             throw new RuntimeException(e);
         }
     }
+
+    @Async
+    public void procesarDesdeLocal(Long eventoId, String filePath, LocalDate fechaStock) {
+
+        // 1. Buscar el evento (igual que en S3)
+        EventoCarga evento = eventoCargaService.buscarPorId(eventoId);
+
+        try (InputStream is = new java.io.FileInputStream(filePath);
+                Workbook workbook = new XSSFWorkbook(is)) { // Abrir archivo local
+
+            // 2. Crear Workbook y Sheet (igual que en S3)
+            Sheet sheet = workbook.getSheetAt(0);
+
+            // 3. Llamar al servicio de stock con el sheet abierto
+            stockService.procesarStock(
+                    sheet,
+                    evento.getNombreArchivo(),
+                    fechaStock,
+                    evento);
+
+            // 4. Marcar completado
+            EventoCarga eventoFinal = eventoCargaService.buscarPorId(eventoId);
+            eventoCargaService.marcarCompletado(eventoFinal);
+            log.info("✅ Procesamiento local finalizado evento {}", eventoFinal);
+
+            // Opcional: Borrar archivo temporal si ya no se necesita
+            // new File(filePath).delete();
+
+        } catch (Exception e) {
+            log.error("❌ Error en procesamiento local evento {}", eventoId, e);
+            eventoCargaService.marcarFallido(eventoId, e.getMessage());
+        }
+    }
+
 }
