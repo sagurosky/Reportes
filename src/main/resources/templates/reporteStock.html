@@ -192,7 +192,7 @@
             <!-- Chart 1: Stock Evolution Line Chart -->
             <div class="col-lg-6 mb-4">
                 <div class="card-translucent">
-                    <h4 class="text-white mb-3">
+                    <h4 class="text-black mb-3">
                         <i class="bi bi-graph-up"></i> Evolución de Stock por Ambiente
                     </h4>
                     <div class="chart-container">
@@ -209,7 +209,7 @@
             <!-- Chart 2: Treemap -->
             <div class="col-lg-6 mb-4">
                 <div class="card-translucent">
-                    <h4 class="text-white mb-3">
+                    <h4 class="text-black mb-3">
                         <i class="bi bi-diagram-3"></i> Mapa de Inventario
                     </h4>
                     <div class="chart-container treemap-container">
@@ -223,7 +223,7 @@
         <div class="row">
             <div class="col-12 mb-4">
                 <div class="card-translucent">
-                    <h4 class="text-white mb-3">
+                    <h4 class="text-black mb-3">
                         <i class="bi bi-exclamation-triangle"></i> Análisis de Quiebre de Stock (Productos en Cero)
                     </h4>
                     <div class="accordion" id="stockoutAccordion">
@@ -283,7 +283,7 @@
         <div class="row">
             <div class="col-12 mb-4">
                 <div class="card-translucent">
-                    <h4 class="text-white mb-3">
+                    <h4 class="text-black mb-3">
                         <i class="bi bi-bar-chart"></i> Comparativa: Consumo vs Stock Actual
                     </h4>
                     <div class="chart-container" style="height: 350px;">
@@ -310,6 +310,7 @@
 
         // Data containers (will be populated via AJAX)
         let stockEvolutionData = [];
+        let originalStockData = []; // Store original data for drill-up
         let treemapData = [];
         let consumoVsStockData = [];
         let stockoutsData = [];
@@ -321,6 +322,10 @@
 
         function initStockEvolutionChart() {
             const ctx = document.getElementById('stockEvolutionChart').getContext('2d');
+
+            if (stockChart) {
+                stockChart.destroy();
+            }
 
             // Group data by categoria (ambiente initially)
             const groupedData = {};
@@ -356,18 +361,22 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: {
-                        mode: 'index',
+                        mode: 'nearest',
                         intersect: false
                     },
                     plugins: {
                         title: {
                             display: true,
-                            text: 'Stock por Ambiente a lo largo del tiempo'
+                            text: currentView === 'ambiente'
+                                ? 'Stock por Ambiente a lo largo del tiempo'
+                                : 'Stock por Familia en ' + selectedAmbiente
                         },
                         legend: {
                             position: 'bottom'
                         },
                         tooltip: {
+                            mode: 'index',
+                            intersect: false,
                             callbacks: {
                                 label: function (context) {
                                     return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' unidades';
@@ -408,27 +417,51 @@
             });
         }
 
-        function drillDownToFamilia(ambiente) {
-            // This would require an AJAX call to fetch familia-level data
-            // For now, show a message
+        async function drillDownToFamilia(ambiente) {
             selectedAmbiente = ambiente;
             currentView = 'familia';
             document.getElementById('btnDrillDown').style.display = 'inline-block';
 
-            // Update chart title
-            stockChart.options.plugins.title.text = 'Stock por Familia en ' + ambiente;
-            stockChart.update();
+            // Show loading
+            const container = document.getElementById('stockEvolutionChart').parentElement;
+            const originalContent = container.innerHTML;
 
-            console.log('Drill-down para ambiente:', ambiente);
-            // In production, make AJAX call here to reload familia data
+            // Optional: visual indicator that something is loading
+            document.body.style.cursor = 'wait';
+
+            try {
+                const params = new URLSearchParams({ fechaInicio, fechaFin, ambiente });
+                if (sucursalId) params.append('sucursalId', sucursalId);
+
+                const response = await fetch(`/api/reportes/stock/evolution/familia?${params}`);
+                if (!response.ok) throw new Error('Error fetching family data');
+
+                const data = await response.json();
+
+                // Update data and re-render
+                stockEvolutionData = data;
+                initStockEvolutionChart();
+
+            } catch (error) {
+                console.error('Error in drill-down:', error);
+                alert('No se pudieron cargar los datos de la familia.');
+                // Revert state
+                currentView = 'ambiente';
+                selectedAmbiente = null;
+                document.getElementById('btnDrillDown').style.display = 'none';
+            } finally {
+                document.body.style.cursor = 'default';
+            }
         }
 
         document.getElementById('btnDrillDown').addEventListener('click', () => {
             currentView = 'ambiente';
             selectedAmbiente = null;
             document.getElementById('btnDrillDown').style.display = 'none';
-            stockChart.options.plugins.title.text = 'Stock por Ambiente a lo largo del tiempo';
-            stockChart.update();
+
+            // Restore original data
+            stockEvolutionData = [...originalStockData];
+            initStockEvolutionChart();
         });
 
         // Chart 2: Treemap with Drill-down
@@ -535,12 +568,13 @@
                     },
                     onClick: (evt, elements) => {
                         if (elements.length > 0) {
-                            const dataIndex = elements[0].index;
                             const datasetIndex = elements[0].datasetIndex;
-                            // Chart.js treemap internal structure is complex, use _data from raw if available
-                            const raw = treemapChart.data.datasets[datasetIndex].tree[dataIndex];
-                            if (raw) {
-                                handleTreemapClick(raw.label);
+                            const dataIndex = elements[0].index;
+
+                            // Access data via the element context to handle sorting correctly
+                            const element = treemapChart.getDatasetMeta(datasetIndex).data[dataIndex];
+                            if (element && element.$context && element.$context.raw && element.$context.raw._data) {
+                                handleTreemapClick(element.$context.raw._data.label);
                             }
                         }
                     }
@@ -749,6 +783,7 @@
                 if (!response.ok) throw new Error('Error en la respuesta');
 
                 stockEvolutionData = await response.json();
+                originalStockData = [...stockEvolutionData]; // Cache initial data
                 initStockEvolutionChart();
             } catch (error) {
                 console.error('Error loading stock evolution:', error);

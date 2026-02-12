@@ -371,9 +371,9 @@ public class Controlador {
             @RequestParam(name = "fechaFin", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
             Model model) {
 
-        // Default to last 30 days if no dates provided
+        // Default to last 7 days if no dates provided
         if (fechaInicio == null) {
-            fechaInicio = LocalDate.now().minusDays(30);
+            fechaInicio = LocalDate.now().minusDays(7);
         }
         if (fechaFin == null) {
             fechaFin = LocalDate.now();
@@ -408,6 +408,22 @@ public class Controlador {
         } catch (Exception e) {
             log.error("Error fetching stock evolution", e);
             return ResponseEntity.status(500).body(Map.of("error", "Error al cargar evolución de stock"));
+        }
+    }
+
+    @GetMapping("/api/reportes/stock/evolution/familia")
+    @ResponseBody
+    public ResponseEntity<?> getStockEvolutionByFamilia(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            @RequestParam(name = "ambiente") String ambiente) {
+        try {
+            return ResponseEntity.ok(reporteStockService.getStockEvolutionByFamilia(fechaInicio, fechaFin, sucursalId,
+                    ambiente));
+        } catch (Exception e) {
+            log.error("Error fetching stock evolution by familia", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al cargar evolución de stock por familia"));
         }
     }
 
