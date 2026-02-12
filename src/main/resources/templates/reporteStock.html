@@ -34,6 +34,20 @@
             height: 400px;
         }
 
+        .spinner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 10px;
+        }
+
         .treemap-container {
             height: 500px;
         }
@@ -196,6 +210,9 @@
                         <i class="bi bi-graph-up"></i> Evolución de Stock por Ambiente
                     </h4>
                     <div class="chart-container">
+                        <div id="stockEvolutionLoader" class="spinner-overlay">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
                         <canvas id="stockEvolutionChart"></canvas>
                     </div>
                     <div class="text-center">
@@ -213,6 +230,9 @@
                         <i class="bi bi-diagram-3"></i> Mapa de Inventario
                     </h4>
                     <div class="chart-container treemap-container">
+                        <div id="treemapLoader" class="spinner-overlay">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
                         <canvas id="treemapChart"></canvas>
                     </div>
                 </div>
@@ -223,8 +243,12 @@
         <div class="row">
             <div class="col-12 mb-4">
                 <div class="card-translucent">
-                    <h4 class="text-black mb-3">
-                        <i class="bi bi-exclamation-triangle"></i> Análisis de Quiebre de Stock (Productos en Cero)
+                    <h4 class="text-black mb-3 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-exclamation-triangle"></i> Análisis de Quiebre de Stock (Productos en
+                            Cero)</span>
+                        <button class="btn btn-sm btn-success" onclick="exportStockoutsToExcel()">
+                            <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                        </button>
                     </h4>
                     <div class="accordion" id="stockoutAccordion">
                         <div th:each="day, iterStat : ${stockoutsByDay}" class="accordion-item">
@@ -287,6 +311,9 @@
                         <i class="bi bi-bar-chart"></i> Comparativa: Consumo vs Stock Actual
                     </h4>
                     <div class="chart-container" style="height: 350px;">
+                        <div id="consumoVsStockLoader" class="spinner-overlay">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
                         <canvas id="consumoVsStockChart"></canvas>
                     </div>
                 </div>
@@ -423,10 +450,7 @@
             document.getElementById('btnDrillDown').style.display = 'inline-block';
 
             // Show loading
-            const container = document.getElementById('stockEvolutionChart').parentElement;
-            const originalContent = container.innerHTML;
-
-            // Optional: visual indicator that something is loading
+            showLoading('stockEvolutionLoader', true);
             document.body.style.cursor = 'wait';
 
             try {
@@ -451,6 +475,7 @@
                 document.getElementById('btnDrillDown').style.display = 'none';
             } finally {
                 document.body.style.cursor = 'default';
+                showLoading('stockEvolutionLoader', false);
             }
         }
 
@@ -750,16 +775,10 @@
         }
 
         // AJAX Data Loading Functions
-        function showLoading(containerId) {
-            const container = document.getElementById(containerId);
-            if (container) {
-                container.innerHTML = `
-                    <div class="d-flex justify-content-center align-items-center h-100">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Cargando...</span>
-                        </div>
-                    </div>
-                `;
+        function showLoading(loaderId, show) {
+            const loader = document.getElementById(loaderId);
+            if (loader) {
+                loader.style.display = show ? 'flex' : 'none';
             }
         }
 
@@ -776,6 +795,7 @@
 
         async function loadStockEvolution() {
             try {
+                showLoading('stockEvolutionLoader', true);
                 const params = new URLSearchParams({ fechaInicio, fechaFin });
                 if (sucursalId) params.append('sucursalId', sucursalId);
 
@@ -788,11 +808,14 @@
             } catch (error) {
                 console.error('Error loading stock evolution:', error);
                 showError('stockEvolutionChart', 'Error al cargar evolución de stock');
+            } finally {
+                showLoading('stockEvolutionLoader', false);
             }
         }
 
         async function loadTreemapData() {
             try {
+                showLoading('treemapLoader', true);
                 const params = new URLSearchParams();
                 if (sucursalId) params.append('sucursalId', sucursalId);
 
@@ -804,6 +827,8 @@
             } catch (error) {
                 console.error('Error loading treemap:', error);
                 showError('treemapChart', 'Error al cargar mapa de inventario');
+            } finally {
+                showLoading('treemapLoader', false);
             }
         }
 
@@ -829,6 +854,7 @@
 
         async function loadConsumoVsStock() {
             try {
+                showLoading('consumoVsStockLoader', true);
                 const params = new URLSearchParams({ fechaInicio, fechaFin });
                 if (sucursalId) params.append('sucursalId', sucursalId);
 
@@ -840,6 +866,8 @@
             } catch (error) {
                 console.error('Error loading consumo vs stock:', error);
                 showError('consumoVsStockChart', 'Error al cargar consumo vs stock');
+            } finally {
+                showLoading('consumoVsStockLoader', false);
             }
         }
 
@@ -901,12 +929,27 @@
             });
         }
 
+        function exportStockoutsToExcel() {
+            // Get values from current URL or global variables
+            const currentUrlParams = new URLSearchParams(window.location.search);
+            const exportFechaInicio = currentUrlParams.get('fechaInicio') || fechaInicio;
+            const exportSucursalId = currentUrlParams.get('sucursalId') || sucursalId;
+
+            const params = new URLSearchParams();
+            if (exportFechaInicio) params.append('fechaInicio', exportFechaInicio);
+            if (exportSucursalId) params.append('sucursalId', exportSucursalId);
+
+            const url = `/api/reportes/stock/stockouts/export?${params.toString()}`;
+            console.log('Downloading stockout report from:', url);
+
+            // Use window.open for a cleaner download experience in some browsers
+            window.location.href = url;
+        }
+
         // Initialize all charts on page load
         window.addEventListener('DOMContentLoaded', () => {
-            // Show loading spinners
-            showLoading('stockEvolutionChart');
-            showLoading('treemapChart');
-            showLoading('consumoVsStockChart');
+            // Load all data in parallel
+            // Loaders are managed inside each function
 
             // Load all data in parallel
             Promise.all([

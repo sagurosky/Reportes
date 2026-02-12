@@ -34,6 +34,10 @@ import plantilla.repositorios.EventoCargaRepository;
 
 import plantilla.servicio.EventoCargaService;
 import plantilla.servicio.ReporteStockService;
+import plantilla.servicio.AuditoriaStockService;
+import plantilla.servicio.AuditoriaKPIsDTO;
+import plantilla.servicio.CumplimientoDiarioDTO;
+import plantilla.servicio.EventoCargaDTO;
 import plantilla.servicio.S3Service;
 import plantilla.servicio.StockAsyncService;
 import plantilla.servicio.StockService;
@@ -59,6 +63,9 @@ public class Controlador {
 
     @Autowired
     private SucursalRepository sucursalRepository;
+
+    @Autowired
+    private AuditoriaStockService auditoriaStockService;
 
     // Menú
     @GetMapping("/menuPrincipal")
@@ -451,6 +458,26 @@ public class Controlador {
         }
     }
 
+    @GetMapping("/api/reportes/stock/stockouts/export")
+    public ResponseEntity<byte[]> exportStockouts(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio) {
+        log.info("📥 Solicitud de exportación de quiebres - Sucursal: {}, Fecha: {}", sucursalId, fechaInicio);
+        try {
+            byte[] excelData = reporteStockService.exportStockoutsToExcel(sucursalId, fechaInicio);
+
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"reporte_quiebres.xlsx\"")
+                    .contentType(org.springframework.http.MediaType
+                            .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelData);
+        } catch (Exception e) {
+            log.error("❌ Error exportando quiebres a Excel", e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
     @GetMapping("/api/reportes/stock/consumo-vs-stock")
     @ResponseBody
     public ResponseEntity<?> getConsumoVsStock(
@@ -462,6 +489,82 @@ public class Controlador {
         } catch (Exception e) {
             log.error("Error fetching consumo vs stock", e);
             return ResponseEntity.status(500).body(Map.of("error", "Error al cargar consumo vs stock"));
+        }
+    }
+
+    // ===== STOCK AUDIT DASHBOARD =====
+
+    @GetMapping("/stock/auditoria")
+    public String auditoriaStock(
+            @RequestParam(name = "color", required = false, defaultValue = "stock-3") String color,
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            Model model) {
+
+        // Default to last 7 days if no dates provided
+        if (fechaInicio == null) {
+            fechaInicio = LocalDate.now().minusDays(7);
+        }
+        if (fechaFin == null) {
+            fechaFin = LocalDate.now();
+        }
+
+        log.info("📊 Dashboard de Auditoría de Stock - Sucursal: {}, Fechas: {} a {}", sucursalId, fechaInicio,
+                fechaFin);
+
+        model.addAttribute("pantalla", "Auditoría de Stock");
+        model.addAttribute("colorClase", color);
+        model.addAttribute("fechaInicio", fechaInicio);
+        model.addAttribute("fechaFin", fechaFin);
+
+        // Sucursal list for filter dropdown
+        model.addAttribute("sucursales", sucursalRepository.findByInhabilitadoFalse());
+        model.addAttribute("sucursalSeleccionada", sucursalId);
+
+        // Data will be loaded via AJAX
+        return "auditoriaStock";
+    }
+
+    @GetMapping("/api/stock/auditoria/kpis")
+    @ResponseBody
+    public ResponseEntity<AuditoriaKPIsDTO> getAuditoriaKPIs(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin) {
+        try {
+            return ResponseEntity.ok(auditoriaStockService.getKPIs(fechaInicio, fechaFin, sucursalId));
+        } catch (Exception e) {
+            log.error("Error fetching audit KPIs", e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @GetMapping("/api/stock/auditoria/cumplimiento")
+    @ResponseBody
+    public ResponseEntity<List<CumplimientoDiarioDTO>> getAuditoriaCumplimiento(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin) {
+        try {
+            return ResponseEntity.ok(auditoriaStockService.getCumplimientoDiario(fechaInicio, fechaFin, sucursalId));
+        } catch (Exception e) {
+            log.error("Error fetching compliance data", e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @GetMapping("/api/stock/auditoria/eventos")
+    @ResponseBody
+    public ResponseEntity<List<EventoCargaDTO>> getAuditoriaEventos(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin) {
+        try {
+            return ResponseEntity.ok(auditoriaStockService.getEventosCarga(fechaInicio, fechaFin, sucursalId));
+        } catch (Exception e) {
+            log.error("Error fetching event loads", e);
+            return ResponseEntity.status(500).build();
         }
     }
 }

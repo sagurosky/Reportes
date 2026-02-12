@@ -1,13 +1,18 @@
 package plantilla.servicio;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import plantilla.dominio.StockHistorico;
 import plantilla.repositorios.StockHistoricoRepository;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -274,8 +279,61 @@ public class ReporteStockService {
         }
 
         /**
-         * Helper method to get Spanish day names
+         * Export stockouts to Excel file
          */
+        public byte[] exportStockoutsToExcel(Long sucursalId, LocalDate fechaInicio) throws IOException {
+                log.info("Exporting stockouts to Excel. Sucursal: {}, Since: {}", sucursalId, fechaInicio);
+                List<StockoutDayDTO> data = getStockoutsByDayOfWeek(sucursalId, fechaInicio);
+
+                try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                        Sheet sheet = workbook.createSheet("Análisis de Quiebres");
+
+                        // Styles
+                        CellStyle headerStyle = workbook.createCellStyle();
+                        Font headerFont = workbook.createFont();
+                        headerFont.setBold(true);
+                        headerStyle.setFont(headerFont);
+                        headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+                        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+                        // Header Row
+                        Row headerRow = sheet.createRow(0);
+                        String[] columns = { "Día", "SKU", "Descripción", "Ambiente", "Familia", "Sucursal", "Fecha" };
+                        for (int i = 0; i < columns.length; i++) {
+                                Cell cell = headerRow.createCell(i);
+                                cell.setCellValue(columns[i]);
+                                cell.setCellStyle(headerStyle);
+                        }
+
+                        // Data Rows
+                        int rowIdx = 1;
+                        for (StockoutDayDTO day : data) {
+                                for (StockoutDayDTO.ProductoStockoutInfo p : day.getProductos()) {
+                                        Row row = sheet.createRow(rowIdx++);
+                                        row.createCell(0).setCellValue(day.getDiaNombre());
+                                        row.createCell(1).setCellValue(p.getSku());
+                                        row.createCell(2).setCellValue(p.getDescripcion());
+                                        row.createCell(3).setCellValue(p.getAmbiente());
+                                        row.createCell(4).setCellValue(p.getFamilia());
+                                        row.createCell(5).setCellValue(p.getSucursal());
+                                        String fechaStr = p.getFechaStock() != null
+                                                        ? p.getFechaStock().format(
+                                                                        DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                                        : "";
+                                        row.createCell(6).setCellValue(fechaStr);
+                                }
+                        }
+
+                        // Auto-size columns
+                        for (int i = 0; i < columns.length; i++) {
+                                sheet.autoSizeColumn(i);
+                        }
+
+                        workbook.write(out);
+                        return out.toByteArray();
+                }
+        }
+
         private String getDayNameInSpanish(DayOfWeek day) {
                 return switch (day) {
                         case MONDAY -> "Lunes";
