@@ -77,37 +77,65 @@ public class ReporteStockService {
          */
         public List<StockEvolutionDTO> getStockEvolutionByAmbiente(LocalDate fechaInicio, LocalDate fechaFin,
                         Long sucursalId) {
-                log.info("Getting stock evolution by ambiente from {} to {} for sucursal: {}", fechaInicio, fechaFin,
-                                sucursalId);
+                log.info("Getting robust stock evolution by ambiente from {} to {} for sucursal: {}", fechaInicio,
+                                fechaFin, sucursalId);
 
                 Long sucursalIdParam = sucursalId != null ? sucursalId : -1L;
-                List<Object[]> data = stockHistoricoRepository.findStockEvolutionByAmbiente(fechaInicio, fechaFin,
+
+                // 1. Get initial baseline (stock before fechaInicio)
+                List<Object[]> initialData = stockHistoricoRepository.findInitialStockByAmbiente(fechaInicio,
+                                sucursalIdParam);
+                Map<String, Long> currentStockByAmbiente = new HashMap<>();
+                for (Object[] row : initialData) {
+                        String ambiente = row[0] != null ? (String) row[0] : "Sin Ambiente";
+                        Long qty = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                        currentStockByAmbiente.put(ambiente, qty);
+                }
+
+                // 2. Get all deltas in range
+                List<Object[]> deltaData = stockHistoricoRepository.findDailyStockDeltasByAmbiente(fechaInicio,
+                                fechaFin,
                                 sucursalIdParam);
 
-                log.info("Retrieved {} evolution data points", data.size());
+                // Group deltas by date and ambiente: Map<Date, Map<Ambiente, Delta>>
+                Map<LocalDate, Map<String, Long>> deltasByDate = new HashMap<>();
+                for (Object[] row : deltaData) {
+                        String ambiente = row[0] != null ? (String) row[0] : "Sin Ambiente";
+                        LocalDate fecha = convertToLocalDate(row[1]);
+                        Long delta = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        deltasByDate.computeIfAbsent(fecha, k -> new HashMap<>()).put(ambiente, delta);
+                }
 
-                return data.stream()
-                                .map(row -> {
-                                        String ambiente = row[0] != null ? (String) row[0] : "Sin Ambiente";
+                // 3. Reconstruct evolution day by day
+                List<StockEvolutionDTO> result = new ArrayList<>();
+                List<LocalDate> sortedDates = deltasByDate.keySet().stream().sorted().collect(Collectors.toList());
 
-                                        // Native query returns java.sql.Date, need to convert to LocalDate
-                                        LocalDate fecha;
-                                        Object dateObj = row[1];
-                                        if (dateObj instanceof java.sql.Date) {
-                                                fecha = ((java.sql.Date) dateObj).toLocalDate();
-                                        } else if (dateObj instanceof java.sql.Timestamp) {
-                                                fecha = ((java.sql.Timestamp) dateObj).toLocalDateTime().toLocalDate();
-                                        } else if (dateObj instanceof LocalDate) {
-                                                fecha = (LocalDate) dateObj;
-                                        } else {
-                                                fecha = LocalDate.now(); // fallback
-                                        }
+                // Optimization: if no deltas but we have initial stock, we should at least show
+                // the start and end
+                // But the chart usually wants all points or at least points where thing
+                // changed.
+                // However, to be consistent with the user's request, we must show the total
+                // stock.
+                // We'll iterate through all dates from start to fin to have a continuous line.
 
-                                        Long cantidad = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                for (LocalDate date = fechaInicio; !date.isAfter(fechaFin); date = date.plusDays(1)) {
+                        Map<String, Long> dailyDeltas = deltasByDate.getOrDefault(date, Collections.emptyMap());
 
-                                        return new StockEvolutionDTO(ambiente, fecha, cantidad);
-                                })
-                                .collect(Collectors.toList());
+                        // Apply today's changes to baseline
+                        for (Map.Entry<String, Long> entry : dailyDeltas.entrySet()) {
+                                String amb = entry.getKey();
+                                Long delta = entry.getValue();
+                                currentStockByAmbiente.put(amb, currentStockByAmbiente.getOrDefault(amb, 0L) + delta);
+                        }
+
+                        // Record current state for all ambientes seen so far
+                        for (Map.Entry<String, Long> entry : currentStockByAmbiente.entrySet()) {
+                                result.add(new StockEvolutionDTO(entry.getKey(), date, entry.getValue()));
+                        }
+                }
+
+                log.info("Calculated evolution with {} data points", result.size());
+                return result;
         }
 
         /**
@@ -116,36 +144,51 @@ public class ReporteStockService {
          */
         public List<StockEvolutionDTO> getStockEvolutionByFamilia(LocalDate fechaInicio, LocalDate fechaFin,
                         Long sucursalId, String ambiente) {
-                log.info("Getting stock evolution by familia for ambiente '{}' from {} to {}", ambiente, fechaInicio,
+                log.info("Getting robust stock evolution by familia for ambiente '{}' from {} to {}", ambiente,
+                                fechaInicio,
                                 fechaFin);
 
                 Long sucursalIdParam = sucursalId != null ? sucursalId : -1L;
-                List<Object[]> data = stockHistoricoRepository.findStockEvolutionByFamilia(fechaInicio, fechaFin,
-                                sucursalIdParam,
-                                ambiente);
 
-                return data.stream()
-                                .map(row -> {
-                                        String familia = row[1] != null ? (String) row[1] : "Sin Familia";
+                // 1. Initial baseline by familia
+                List<Object[]> initialData = stockHistoricoRepository.findInitialStockByFamilia(fechaInicio,
+                                sucursalIdParam, ambiente);
+                Map<String, Long> currentStockByFamilia = new HashMap<>();
+                for (Object[] row : initialData) {
+                        String familia = row[0] != null ? (String) row[0] : "Sin Familia";
+                        Long qty = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                        currentStockByFamilia.put(familia, qty);
+                }
 
-                                        // Native query returns java.sql.Date
-                                        LocalDate fecha;
-                                        Object dateObj = row[2];
-                                        if (dateObj instanceof java.sql.Date) {
-                                                fecha = ((java.sql.Date) dateObj).toLocalDate();
-                                        } else if (dateObj instanceof java.sql.Timestamp) {
-                                                fecha = ((java.sql.Timestamp) dateObj).toLocalDateTime().toLocalDate();
-                                        } else if (dateObj instanceof LocalDate) {
-                                                fecha = (LocalDate) dateObj;
-                                        } else {
-                                                fecha = LocalDate.now(); // fallback
-                                        }
+                // 2. Daily deltas by familia
+                List<Object[]> deltaData = stockHistoricoRepository.findDailyStockDeltasByFamilia(fechaInicio, fechaFin,
+                                sucursalIdParam, ambiente);
 
-                                        Long cantidad = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                Map<LocalDate, Map<String, Long>> deltasByDate = new HashMap<>();
+                for (Object[] row : deltaData) {
+                        String familia = row[1] != null ? (String) row[1] : "Sin Familia";
+                        LocalDate fecha = convertToLocalDate(row[2]);
+                        Long delta = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                        deltasByDate.computeIfAbsent(fecha, k -> new HashMap<>()).put(familia, delta);
+                }
 
-                                        return new StockEvolutionDTO(familia, fecha, cantidad);
-                                })
-                                .collect(Collectors.toList());
+                // 3. Reconstruct
+                List<StockEvolutionDTO> result = new ArrayList<>();
+                for (LocalDate date = fechaInicio; !date.isAfter(fechaFin); date = date.plusDays(1)) {
+                        Map<String, Long> dailyDeltas = deltasByDate.getOrDefault(date, Collections.emptyMap());
+
+                        for (Map.Entry<String, Long> entry : dailyDeltas.entrySet()) {
+                                String fam = entry.getKey();
+                                Long delta = entry.getValue();
+                                currentStockByFamilia.put(fam, currentStockByFamilia.getOrDefault(fam, 0L) + delta);
+                        }
+
+                        for (Map.Entry<String, Long> entry : currentStockByFamilia.entrySet()) {
+                                result.add(new StockEvolutionDTO(entry.getKey(), date, entry.getValue()));
+                        }
+                }
+
+                return result;
         }
 
         /**
@@ -238,29 +281,15 @@ public class ReporteStockService {
                                                                 row -> row[2] != null ? ((Number) row[2]).longValue()
                                                                                 : 0L)));
 
-                // Get stock evolution
-                List<Object[]> stockData = stockHistoricoRepository.findStockEvolutionByAmbiente(fechaInicio, fechaFin,
-                                sucursalIdParam);
+                // Get stock evolution (using our new robust method)
+                List<StockEvolutionDTO> stockEvolution = getStockEvolutionByAmbiente(fechaInicio, fechaFin,
+                                sucursalId);
 
-                // Group by date - handle potential java.sql.Date, java.sql.Timestamp or
-                // LocalDate
-                Map<LocalDate, Long> stockByDate = stockData.stream()
+                // Aggregate by date (summing all ambientes)
+                Map<LocalDate, Long> stockByDate = stockEvolution.stream()
                                 .collect(Collectors.groupingBy(
-                                                row -> {
-                                                        Object dateObj = row[1];
-                                                        if (dateObj instanceof java.sql.Date) {
-                                                                return ((java.sql.Date) dateObj).toLocalDate();
-                                                        } else if (dateObj instanceof java.sql.Timestamp) {
-                                                                return ((java.sql.Timestamp) dateObj).toLocalDateTime()
-                                                                                .toLocalDate();
-                                                        } else if (dateObj instanceof LocalDate) {
-                                                                return (LocalDate) dateObj;
-                                                        }
-                                                        return LocalDate.now(); // fallback
-                                                },
-                                                Collectors.summingLong(
-                                                                row -> row[2] != null ? ((Number) row[2]).longValue()
-                                                                                : 0L)));
+                                                StockEvolutionDTO::getFecha,
+                                                Collectors.summingLong(StockEvolutionDTO::getCantidad)));
 
                 // Merge both datasets
                 Set<LocalDate> allDates = new TreeSet<>();
@@ -344,5 +373,18 @@ public class ReporteStockService {
                         case SATURDAY -> "Sábado";
                         case SUNDAY -> "Domingo";
                 };
+        }
+
+        private LocalDate convertToLocalDate(Object dateObj) {
+                if (dateObj == null)
+                        return LocalDate.now();
+                if (dateObj instanceof java.sql.Date) {
+                        return ((java.sql.Date) dateObj).toLocalDate();
+                } else if (dateObj instanceof java.sql.Timestamp) {
+                        return ((java.sql.Timestamp) dateObj).toLocalDateTime().toLocalDate();
+                } else if (dateObj instanceof LocalDate) {
+                        return (LocalDate) dateObj;
+                }
+                return LocalDate.now();
         }
 }

@@ -23,18 +23,19 @@ public class AuditoriaStockService {
     @Autowired
     private EventoCargaRepository eventoCargaRepository;
 
+    @Autowired
+    private plantilla.repositorios.SucursalRepository sucursalRepository;
+
     /**
      * Get KPIs for audit dashboard
      */
     public AuditoriaKPIsDTO getKPIs(LocalDate fechaInicio, LocalDate fechaFin, Long sucursalId) {
         log.info("Getting audit KPIs from {} to {} for sucursal: {}", fechaInicio, fechaFin, sucursalId);
 
-        Long sucursalIdParam = sucursalId != null ? sucursalId : -1L;
-
-        Long totalCargas = eventoCargaRepository.countTotalCargas(fechaInicio, fechaFin, sucursalIdParam);
-        Long cargasExitosas = eventoCargaRepository.countCargasExitosas(fechaInicio, fechaFin, sucursalIdParam);
+        Long totalCargas = eventoCargaRepository.countTotalCargas(fechaInicio, fechaFin, sucursalId);
+        Long cargasExitosas = eventoCargaRepository.countCargasExitosas(fechaInicio, fechaFin, sucursalId);
         Long conErrores = totalCargas - cargasExitosas;
-        Double promedio = eventoCargaRepository.getPromedioCompletado(fechaInicio, fechaFin, sucursalIdParam);
+        Double promedio = eventoCargaRepository.getPromedioCompletado(fechaInicio, fechaFin, sucursalId);
 
         // Handle null promedio (no data)
         if (promedio == null) {
@@ -46,44 +47,68 @@ public class AuditoriaStockService {
 
     /**
      * Get daily compliance data with business rule validation
+     * Generates records for all days and sucursales in range
      */
     public List<CumplimientoDiarioDTO> getCumplimientoDiario(LocalDate fechaInicio, LocalDate fechaFin,
             Long sucursalId) {
         log.info("Getting daily compliance from {} to {} for sucursal: {}", fechaInicio, fechaFin, sucursalId);
 
-        Long sucursalIdParam = sucursalId != null ? sucursalId : -1L;
-        List<Object[]> data = eventoCargaRepository.findCumplimientoDiario(fechaInicio, fechaFin, sucursalIdParam);
+        // 1. Get existing data from DB
+        List<Object[]> dbData = eventoCargaRepository.findCumplimientoDiario(fechaInicio, fechaFin, sucursalId);
 
-        return data.stream()
-                .map(row -> {
-                    // Parse data from query result
-                    LocalDate fecha = convertToLocalDate(row[0]);
-                    String sucursalNombre = (String) row[1];
-                    String updStockDia = (String) row[2]; // Expected day from sucursales.upd_stock
-                    Integer cantidadCargas = ((Number) row[3]).intValue();
+        // Group DB data by fecha and sucursalNombre for easy lookup
+        java.util.Map<String, Integer> loadCounts = new java.util.HashMap<>();
+        for (Object[] row : dbData) {
+            LocalDate fecha = convertToLocalDate(row[0]);
+            String sucursalNombre = (String) row[1];
+            Integer cantidad = ((Number) row[3]).intValue();
+            log.info("DB Data found: {} - {} -> {} loads", fecha, sucursalNombre, cantidad);
+            loadCounts.put(fecha.toString() + "_" + sucursalNombre, cantidad);
+        }
 
-                    // Calculate day of week name in Spanish
-                    String diaEsperado = fecha.getDayOfWeek()
-                            .getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
-                    // Capitalize first letter
-                    diaEsperado = diaEsperado.substring(0, 1).toUpperCase() + diaEsperado.substring(1);
+        // 2. Get target sucursales
+        List<plantilla.dominio.Sucursal> sucursales;
+        if (sucursalId != null) {
+            sucursales = sucursalRepository.findById(sucursalId)
+                    .map(List::of)
+                    .orElse(List.of());
+        } else {
+            sucursales = sucursalRepository.findByInhabilitadoFalse();
+        }
 
-                    // Business Rule: Volume indicator
-                    Boolean estadoVolumen = cantidadCargas > 2;
+        // 3. Generate all records
+        List<CumplimientoDiarioDTO> result = new java.util.ArrayList<>();
 
-                    // Business Rule: Compliance validation
-                    Boolean cumpleRegla = evaluarCumplimiento(fecha, updStockDia, cantidadCargas);
+        for (LocalDate date = fechaFin; !date.isBefore(fechaInicio); date = date.minusDays(1)) {
+            for (plantilla.dominio.Sucursal suc : sucursales) {
+                String key = date.toString() + "_" + suc.getNombre();
+                Integer cantidadCargas = loadCounts.getOrDefault(key, 0);
 
-                    return new CumplimientoDiarioDTO(
-                            fecha,
-                            sucursalNombre,
-                            diaEsperado,
-                            cantidadCargas,
-                            estadoVolumen,
-                            cumpleRegla,
-                            updStockDia);
-                })
-                .collect(Collectors.toList());
+                String updStockDia = suc.getUpdStock();
+
+                // Calculate display day of week
+                String diaDisplay = date.getDayOfWeek()
+                        .getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
+                diaDisplay = diaDisplay.substring(0, 1).toUpperCase() + diaDisplay.substring(1);
+
+                // Business Rule: Compliance validation
+                Boolean cumpleRegla = evaluarCumplimiento(date, updStockDia, cantidadCargas);
+
+                // Business Rule: Volumen OK if rule is met
+                Boolean estadoVolumen = cumpleRegla;
+
+                result.add(new CumplimientoDiarioDTO(
+                        date,
+                        suc.getNombre(),
+                        diaDisplay,
+                        cantidadCargas,
+                        estadoVolumen,
+                        cumpleRegla,
+                        updStockDia));
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -92,14 +117,18 @@ public class AuditoriaStockService {
     public List<EventoCargaDTO> getEventosCarga(LocalDate fechaInicio, LocalDate fechaFin, Long sucursalId) {
         log.info("Getting event loads from {} to {} for sucursal: {}", fechaInicio, fechaFin, sucursalId);
 
-        Long sucursalIdParam = sucursalId != null ? sucursalId : -1L;
-        List<Object[]> data = eventoCargaRepository.findEventosCarga(fechaInicio, fechaFin, sucursalIdParam);
+        List<Object[]> data = eventoCargaRepository.findEventosCarga(fechaInicio, fechaFin, sucursalId);
 
         return data.stream()
                 .map(row -> {
                     // Parse data from query result
-                    java.sql.Timestamp timestamp = (java.sql.Timestamp) row[0];
-                    java.time.LocalDateTime fecha = timestamp.toLocalDateTime();
+                    java.time.LocalDateTime fecha = null;
+                    if (row[0] instanceof java.sql.Timestamp) {
+                        fecha = ((java.sql.Timestamp) row[0]).toLocalDateTime();
+                    } else if (row[0] instanceof java.time.LocalDateTime) {
+                        fecha = (java.time.LocalDateTime) row[0];
+                    }
+
                     String sucursalNombre = (String) row[1];
                     String usuario = (String) row[2];
                     String nombreArchivo = (String) row[3];
@@ -124,30 +153,23 @@ public class AuditoriaStockService {
     /**
      * Business Rule: Evaluate compliance based on day of week and upd_stock
      * 
-     * - If current day matches upd_stock day: requires >= 2 cargas
-     * - If current day does NOT match upd_stock day: requires > 1 carga
+     * - If current day DOES NOT match upd_stock day: OK if cargas >= 1
+     * - If current day DOES match upd_stock day: OK if cargas >= 2
      */
     private Boolean evaluarCumplimiento(LocalDate fecha, String updStockDia, Integer cantidadCargas) {
-        if (updStockDia == null || updStockDia.trim().isEmpty()) {
-            // No upd_stock configured, use default rule: > 1
-            return cantidadCargas > 1;
-        }
-
         // Get day of week name in Spanish
         String diaActual = fecha.getDayOfWeek()
                 .getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
-        // Capitalize first letter to match potential database values
-        diaActual = diaActual.substring(0, 1).toUpperCase() + diaActual.substring(1);
 
-        // Compare (case-insensitive)
-        boolean esDiaCargaFuerte = diaActual.equalsIgnoreCase(updStockDia.trim());
+        // Normalize for comparison
+        boolean esDiaCargaFuerte = updStockDia != null && diaActual.equalsIgnoreCase(updStockDia.trim());
 
         if (esDiaCargaFuerte) {
-            // Scenario B: Heavy load day - requires at least 2 cargas
+            // Scenario: Heavy load day - requires at least 2 cargas
             return cantidadCargas >= 2;
         } else {
-            // Scenario A: Normal day - requires more than 1 carga
-            return cantidadCargas > 1;
+            // Scenario: Normal day - requires at least 1 carga
+            return cantidadCargas >= 1;
         }
     }
 
