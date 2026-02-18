@@ -146,9 +146,8 @@
 
                     <div class="col-md-6">
                         <label for="fechaStock" class="form-label fw-semibold">Fecha del stock:</label>
-                        <input type="date" id="fechaStock" class="form-control"
-                            th:value="${#dates.format(ahora, 'yyyy-MM-dd')}"
-                            th:attr="max=${#dates.format(ahora, 'yyyy-MM-dd')}">
+                        <input type="date" id="fechaStock" class="form-control" th:value="${fechaActual}"
+                            th:attr="max=${fechaActual}">
                         <div id="fechaError" class="text-danger mt-1" style="display: none;">
                             La fecha no puede ser futura.
                         </div>

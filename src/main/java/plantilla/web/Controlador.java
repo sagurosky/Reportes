@@ -19,13 +19,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 import plantilla.dominio.EventoCarga;
@@ -85,10 +81,12 @@ public class Controlador {
         model.addAttribute("pantalla", "Carga de archivos de " + nombre);
         model.addAttribute("colorClase", color);
 
-        // DMS conversiones por error en thymeleaf
+        // DMS: Usamos String formateado para evitar desfases de zona horaria en
+        // Thymeleaf
         ZonedDateTime ahoraZona = ZonedDateTime.now(ZoneId.of("America/Argentina/Buenos_Aires"));
-        Date ahora = Date.from(ahoraZona.toInstant());
-        model.addAttribute("ahora", ahora);
+        String fechaActual = ahoraZona.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        model.addAttribute("fechaActual", fechaActual);
+
         return "cargarArchivos";
     }
 
