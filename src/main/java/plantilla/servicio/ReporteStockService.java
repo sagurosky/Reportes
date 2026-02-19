@@ -251,6 +251,13 @@ public class ReporteStockService {
                                                         : null)
                                         : null;
 
+                        Integer agregado = lastIngreso != null
+                                        ? (lastIngreso.getCantidad() != null && lastIngreso.getDiffAnterior() != null
+                                                        ? Integer.valueOf(lastIngreso.getCantidad().intValue()
+                                                                        - lastIngreso.getDiffAnterior().intValue())
+                                                        : null)
+                                        : null;
+
                         StockoutDayDTO.ProductoStockoutInfo info = new StockoutDayDTO.ProductoStockoutInfo(
                                         sh.getProducto().getSku(),
                                         sh.getProducto().getDescripcion(),
@@ -259,7 +266,8 @@ public class ReporteStockService {
                                         sh.getSucursal().getNombre(),
                                         sh.getFechaStock(),
                                         fechaUlt,
-                                        cantUlt);
+                                        cantUlt,
+                                        agregado);
 
                         dayDTO.getProductos().add(info);
                         dayDTO.setProductoCount(dayDTO.getProductoCount() + 1);
@@ -359,7 +367,7 @@ public class ReporteStockService {
                         // Header Row
                         Row headerRow = sheet.createRow(0);
                         String[] columns = { "Día", "SKU", "Descripción", "Ambiente", "Familia", "Sucursal",
-                                        "Fecha Quiebre", "Fecha ultimo Ingreso", "Cantidad último ingreso" };
+                                        "Fecha Quiebre", "Fecha ultimo Ingreso", "Total ultimo ingreso", "Agregado" };
                         for (int i = 0; i < columns.length; i++) {
                                 Cell cell = headerRow.createCell(i);
                                 cell.setCellValue(columns[i]);
@@ -394,6 +402,12 @@ public class ReporteStockService {
                                                 row.createCell(8).setCellValue(p.getCantidadUltimoIngreso());
                                         } else {
                                                 row.createCell(8).setCellValue("-");
+                                        }
+
+                                        if (p.getAgregado() != null) {
+                                                row.createCell(9).setCellValue(p.getAgregado());
+                                        } else {
+                                                row.createCell(9).setCellValue("-");
                                         }
                                 }
                         }

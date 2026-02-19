@@ -43,5 +43,6 @@ public class StockoutDayDTO {
         private LocalDate fechaStock;
         private LocalDate fechaUltimoIngreso;
         private Integer cantidadUltimoIngreso; // Total stock at last entry
+        private Integer agregado; // cantidad afgregada con el ultimo ingreso
     }
 }

@@ -911,7 +911,8 @@
                                             <th>SUCURSAL</th>
                                             <th>FECHA QUIEBRE</th>
                                             <th>FECHA ÚLT. INGRESO</th>
-                                            <th>CANT. ÚLT. INGRESO</th>
+                                            <th>TOTAL. ÚLT. INGRESO</th>
+                                            <th>AGREGADO</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -925,6 +926,7 @@
                                                 <td>${new Date(p.fechaStock + 'T12:00:00').toLocaleDateString('es-AR')}</td>
                                                 <td>${p.fechaUltimoIngreso ? new Date(p.fechaUltimoIngreso + 'T12:00:00').toLocaleDateString('es-AR') : '-'}</td>
                                                 <td>${p.cantidadUltimoIngreso !== null ? p.cantidadUltimoIngreso : '-'}</td>
+                                                <td>${p.agregado !== null ? p.agregado : '-'}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
