@@ -275,7 +275,9 @@
                                                     <th>AMBIENTE</th>
                                                     <th>FAMILIA</th>
                                                     <th>SUCURSAL</th>
-                                                    <th>FECHA</th>
+                                                    <th>FECHA QUIEBRE</th>
+                                                    <th>ÚLT. INGRESO</th>
+                                                    <th>CANTIDAD</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -288,6 +290,12 @@
                                                     <td
                                                         th:text="${#temporals.format(producto.fechaStock, 'dd/MM/yyyy')}">
                                                         Fecha</td>
+                                                    <td
+                                                        th:text="${producto.fechaUltimoIngreso != null ? #temporals.format(producto.fechaUltimoIngreso, 'dd/MM/yyyy') : '-'}">
+                                                        Ult. Ingreso</td>
+                                                    <td
+                                                        th:text="${producto.cantidadUltimoIngreso != null ? producto.cantidadUltimoIngreso : '-'}">
+                                                        Cantidad</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -901,7 +909,9 @@
                                             <th>AMBIENTE</th>
                                             <th>FAMILIA</th>
                                             <th>SUCURSAL</th>
-                                            <th>FECHA</th>
+                                            <th>FECHA QUIEBRE</th>
+                                            <th>FECHA ÚLT. INGRESO</th>
+                                            <th>CANT. ÚLT. INGRESO</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -912,7 +922,9 @@
                                                 <td>${p.ambiente}</td>
                                                 <td>${p.familia}</td>
                                                 <td>${p.sucursal}</td>
-                                                <td>${new Date(p.fechaStock).toLocaleDateString('es-AR')}</td>
+                                                <td>${new Date(p.fechaStock + 'T12:00:00').toLocaleDateString('es-AR')}</td>
+                                                <td>${p.fechaUltimoIngreso ? new Date(p.fechaUltimoIngreso + 'T12:00:00').toLocaleDateString('es-AR') : '-'}</td>
+                                                <td>${p.cantidadUltimoIngreso !== null ? p.cantidadUltimoIngreso : '-'}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>

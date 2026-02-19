@@ -41,5 +41,7 @@ public class StockoutDayDTO {
         private String familia;
         private String sucursal;
         private LocalDate fechaStock;
+        private LocalDate fechaUltimoIngreso;
+        private Integer cantidadUltimoIngreso; // Total stock at last entry
     }
 }

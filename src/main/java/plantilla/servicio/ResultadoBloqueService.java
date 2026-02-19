@@ -23,6 +23,7 @@ import java.util.Optional;
 
 import static plantilla.servicio.StockService.*;
 import static plantilla.util.Validadores.safeStringCell;
+
 @Service
 
 public class ResultadoBloqueService {
@@ -34,10 +35,8 @@ public class ResultadoBloqueService {
     @Autowired
     SucursalRepository sucursalRepository;
 
-
     @PersistenceContext
     private EntityManager entityManager;
-
 
     @Transactional
     public ResultadoBloqueDTO procesarBloque(
@@ -56,7 +55,8 @@ public class ResultadoBloqueService {
         for (Row row : rows) {
 
             String sku = safeStringCell(row, IDX_SKU);
-            if (sku == null || sku.isBlank()) continue;
+            if (sku == null || sku.isBlank())
+                continue;
 
             Integer cantidad = Validadores.safeIntCell(row, IDX_CANTIDAD);
 
@@ -83,16 +83,16 @@ public class ResultadoBloqueService {
             // -----------------------
             // Último stock
             // -----------------------
-            Optional<StockHistorico> ultimoOpt =
-                    stockHistoricoRepository.findTopByProducto_SkuAndSucursalOrderByFechaStockDescIdDesc(
-                            sku, sucursal
-                    );
+            Optional<StockHistorico> ultimoOpt = stockHistoricoRepository
+                    .findTopByProducto_SkuAndSucursalOrderByFechaStockDescIdDesc(
+                            sku, sucursal);
 
             boolean hayCambio = ultimoOpt
                     .map(u -> !Objects.equals(u.getCantidad(), cantidad))
                     .orElse(true);
 
-            if (!hayCambio) continue;
+            if (!hayCambio)
+                continue;
 
             StockHistorico stock = new StockHistorico();
             stock.setProducto(producto);
@@ -102,17 +102,15 @@ public class ResultadoBloqueService {
             Integer diffAnterior = ultimoOpt.map(StockHistorico::getCantidad).orElse(null);
             stock.setDiffAnterior(diffAnterior);
 
-// nuevoIngreso = true si cantidad > diffAnterior
-            boolean nuevoIngreso = diffAnterior != null && cantidad > diffAnterior;
+            // nuevoIngreso = true si cantidad > diffAnterior o si es el primer registro del
+            // producto (productoNuevo)
+            boolean nuevoIngreso = (diffAnterior != null && cantidad > diffAnterior) || productoNuevo;
             stock.setNuevoIngreso(nuevoIngreso);
-
-
 
             stock.setFechaStock(fechaStock);
             stock.setFechaCarga(TiempoUtils.ahora());
             stock.setEventoCarga(eventoManaged);
             stock.setEsInicial(productoNuevo);
-
 
             entityManager.persist(stock);
 

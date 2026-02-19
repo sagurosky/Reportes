@@ -210,6 +210,18 @@ public class ReporteStockService {
                 Long sucursalIdParam = sucursalId != null ? sucursalId : -1L;
                 List<StockHistorico> stockouts = stockHistoricoRepository.findStockouts(fechaInicio, sucursalIdParam);
 
+                // Fetch ALL entries for these products to find the one preceding each stockout
+                Set<String> skus = stockouts.stream().map(sh -> sh.getProducto().getSku()).collect(Collectors.toSet());
+                Map<String, List<StockHistorico>> ingresosByProduct = new HashMap<>(); // Key: Sku|SucursalId
+                if (!skus.isEmpty()) {
+                        List<StockHistorico> allIngresos = stockHistoricoRepository.findAllIngresosForSkus(skus,
+                                        sucursalIdParam);
+                        for (StockHistorico li : allIngresos) {
+                                String key = li.getProducto().getSku() + "|" + li.getSucursal().getId();
+                                ingresosByProduct.computeIfAbsent(key, k -> new ArrayList<>()).add(li);
+                        }
+                }
+
                 // Initialize all days of the week
                 Map<DayOfWeek, StockoutDayDTO> dayMap = new LinkedHashMap<>();
                 for (DayOfWeek day : DayOfWeek.values()) {
@@ -222,13 +234,32 @@ public class ReporteStockService {
                         DayOfWeek day = sh.getFechaStock().getDayOfWeek();
                         StockoutDayDTO dayDTO = dayMap.get(day);
 
+                        // Find the most recent entry whose ID is smaller than this stockout's ID
+                        String key = sh.getProducto().getSku() + "|" + sh.getSucursal().getId();
+                        List<StockHistorico> productIngresos = ingresosByProduct.getOrDefault(key,
+                                        Collections.emptyList());
+
+                        // productIngresos is sorted by ID DESC in the repo query
+                        StockHistorico lastIngreso = productIngresos.stream()
+                                        .filter(ing -> ing.getId() < sh.getId())
+                                        .findFirst()
+                                        .orElse(null);
+
+                        LocalDate fechaUlt = lastIngreso != null ? lastIngreso.getFechaStock() : null;
+                        Integer cantUlt = lastIngreso != null
+                                        ? (lastIngreso.getCantidad() != null ? lastIngreso.getCantidad().intValue()
+                                                        : null)
+                                        : null;
+
                         StockoutDayDTO.ProductoStockoutInfo info = new StockoutDayDTO.ProductoStockoutInfo(
                                         sh.getProducto().getSku(),
                                         sh.getProducto().getDescripcion(),
                                         sh.getProducto().getAmbiente(),
                                         sh.getProducto().getFamilia(),
                                         sh.getSucursal().getNombre(),
-                                        sh.getFechaStock());
+                                        sh.getFechaStock(),
+                                        fechaUlt,
+                                        cantUlt);
 
                         dayDTO.getProductos().add(info);
                         dayDTO.setProductoCount(dayDTO.getProductoCount() + 1);
@@ -327,7 +358,8 @@ public class ReporteStockService {
 
                         // Header Row
                         Row headerRow = sheet.createRow(0);
-                        String[] columns = { "Día", "SKU", "Descripción", "Ambiente", "Familia", "Sucursal", "Fecha" };
+                        String[] columns = { "Día", "SKU", "Descripción", "Ambiente", "Familia", "Sucursal",
+                                        "Fecha Quiebre", "Fecha ultimo Ingreso", "Cantidad último ingreso" };
                         for (int i = 0; i < columns.length; i++) {
                                 Cell cell = headerRow.createCell(i);
                                 cell.setCellValue(columns[i]);
@@ -345,11 +377,24 @@ public class ReporteStockService {
                                         row.createCell(3).setCellValue(p.getAmbiente());
                                         row.createCell(4).setCellValue(p.getFamilia());
                                         row.createCell(5).setCellValue(p.getSucursal());
+
                                         String fechaStr = p.getFechaStock() != null
                                                         ? p.getFechaStock().format(
                                                                         DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                                                         : "";
                                         row.createCell(6).setCellValue(fechaStr);
+
+                                        String fechaUltStr = p.getFechaUltimoIngreso() != null
+                                                        ? p.getFechaUltimoIngreso().format(
+                                                                        DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                                        : "-";
+                                        row.createCell(7).setCellValue(fechaUltStr);
+
+                                        if (p.getCantidadUltimoIngreso() != null) {
+                                                row.createCell(8).setCellValue(p.getCantidadUltimoIngreso());
+                                        } else {
+                                                row.createCell(8).setCellValue("-");
+                                        }
                                 }
                         }
 
