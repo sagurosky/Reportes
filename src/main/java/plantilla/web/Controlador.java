@@ -432,6 +432,60 @@ public class Controlador {
         }
     }
 
+    @GetMapping("/api/reportes/stock/evolution/nivel3")
+    @ResponseBody
+    public ResponseEntity<?> getStockEvolutionByNivel3(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            @RequestParam(name = "ambiente") String ambiente,
+            @RequestParam(name = "familia") String familia) {
+        try {
+            return ResponseEntity.ok(reporteStockService.getStockEvolutionByNivel3(fechaInicio, fechaFin, sucursalId,
+                    ambiente, familia));
+        } catch (Exception e) {
+            log.error("Error fetching stock evolution by nivel3", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al cargar evolución por nivel3"));
+        }
+    }
+
+    @GetMapping("/api/reportes/stock/evolution/nivel4")
+    @ResponseBody
+    public ResponseEntity<?> getStockEvolutionByNivel4(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            @RequestParam(name = "ambiente") String ambiente,
+            @RequestParam(name = "familia") String familia,
+            @RequestParam(name = "nivel3") String nivel3) {
+        try {
+            return ResponseEntity.ok(reporteStockService.getStockEvolutionByNivel4(fechaInicio, fechaFin, sucursalId,
+                    ambiente, familia, nivel3));
+        } catch (Exception e) {
+            log.error("Error fetching stock evolution by nivel4", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al cargar evolución por nivel4"));
+        }
+    }
+
+    @GetMapping("/api/reportes/stock/evolution/sku")
+    @ResponseBody
+    public ResponseEntity<?> getStockEvolutionBySku(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            @RequestParam(name = "ambiente") String ambiente,
+            @RequestParam(name = "familia") String familia,
+            @RequestParam(name = "nivel3") String nivel3,
+            @RequestParam(name = "nivel4") String nivel4) {
+        try {
+            return ResponseEntity.ok(reporteStockService.getStockEvolutionBySku(fechaInicio, fechaFin, sucursalId,
+                    ambiente, familia, nivel3, nivel4));
+        } catch (Exception e) {
+            log.error("Error fetching stock evolution by sku", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al cargar evolución por SKU"));
+        }
+    }
+
     @GetMapping("/api/reportes/stock/treemap")
     @ResponseBody
     public ResponseEntity<?> getTreemapData(@RequestParam(name = "sucursalId", required = false) Long sucursalId) {

@@ -191,6 +191,105 @@ public class ReporteStockService {
                 return result;
         }
 
+        /** Get stock evolution by nivel3 (drill-down: ambiente > familia > nivel3) */
+        public List<StockEvolutionDTO> getStockEvolutionByNivel3(LocalDate fechaInicio, LocalDate fechaFin,
+                        Long sucursalId, String ambiente, String familia) {
+                log.info("Stock evolution by nivel3 for ambiente='{}', familia='{}'", ambiente, familia);
+                Long sid = sucursalId != null ? sucursalId : -1L;
+
+                Map<String, Long> current = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findInitialStockByNivel3(fechaInicio, sid, ambiente,
+                                familia)) {
+                        current.put(row[0] != null ? (String) row[0] : "Sin Nivel 3",
+                                        row[1] != null ? ((Number) row[1]).longValue() : 0L);
+                }
+
+                Map<LocalDate, Map<String, Long>> deltas = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findDailyStockDeltasByNivel3(fechaInicio, fechaFin, sid,
+                                ambiente, familia)) {
+                        String cat = row[0] != null ? (String) row[0] : "Sin Nivel 3";
+                        LocalDate fecha = convertToLocalDate(row[1]);
+                        Long delta = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        deltas.computeIfAbsent(fecha, k -> new HashMap<>()).put(cat, delta);
+                }
+
+                List<StockEvolutionDTO> result = new ArrayList<>();
+                for (LocalDate date = fechaInicio; !date.isAfter(fechaFin); date = date.plusDays(1)) {
+                        deltas.getOrDefault(date, Collections.emptyMap())
+                                        .forEach((k, v) -> current.merge(k, v, Long::sum));
+                        for (Map.Entry<String, Long> e : current.entrySet())
+                                result.add(new StockEvolutionDTO(e.getKey(), date, e.getValue()));
+                }
+                return result;
+        }
+
+        /**
+         * Get stock evolution by nivel4 (drill-down: ambiente > familia > nivel3 >
+         * nivel4)
+         */
+        public List<StockEvolutionDTO> getStockEvolutionByNivel4(LocalDate fechaInicio, LocalDate fechaFin,
+                        Long sucursalId, String ambiente, String familia, String nivel3) {
+                log.info("Stock evolution by nivel4 for nivel3='{}'", nivel3);
+                Long sid = sucursalId != null ? sucursalId : -1L;
+
+                Map<String, Long> current = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findInitialStockByNivel4(fechaInicio, sid, ambiente,
+                                familia, nivel3)) {
+                        current.put(row[0] != null ? (String) row[0] : "Sin Nivel 4",
+                                        row[1] != null ? ((Number) row[1]).longValue() : 0L);
+                }
+
+                Map<LocalDate, Map<String, Long>> deltas = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findDailyStockDeltasByNivel4(fechaInicio, fechaFin, sid,
+                                ambiente, familia, nivel3)) {
+                        String cat = row[0] != null ? (String) row[0] : "Sin Nivel 4";
+                        LocalDate fecha = convertToLocalDate(row[1]);
+                        Long delta = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        deltas.computeIfAbsent(fecha, k -> new HashMap<>()).put(cat, delta);
+                }
+
+                List<StockEvolutionDTO> result = new ArrayList<>();
+                for (LocalDate date = fechaInicio; !date.isAfter(fechaFin); date = date.plusDays(1)) {
+                        deltas.getOrDefault(date, Collections.emptyMap())
+                                        .forEach((k, v) -> current.merge(k, v, Long::sum));
+                        for (Map.Entry<String, Long> e : current.entrySet())
+                                result.add(new StockEvolutionDTO(e.getKey(), date, e.getValue()));
+                }
+                return result;
+        }
+
+        /** Get stock evolution by SKU (deepest drill-down level) */
+        public List<StockEvolutionDTO> getStockEvolutionBySku(LocalDate fechaInicio, LocalDate fechaFin,
+                        Long sucursalId, String ambiente, String familia, String nivel3, String nivel4) {
+                log.info("Stock evolution by sku for nivel4='{}'", nivel4);
+                Long sid = sucursalId != null ? sucursalId : -1L;
+
+                Map<String, Long> current = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findInitialStockBySku(fechaInicio, sid, ambiente, familia,
+                                nivel3, nivel4)) {
+                        current.put(row[0] != null ? (String) row[0] : "Sin SKU",
+                                        row[1] != null ? ((Number) row[1]).longValue() : 0L);
+                }
+
+                Map<LocalDate, Map<String, Long>> deltas = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findDailyStockDeltasBySku(fechaInicio, fechaFin, sid,
+                                ambiente, familia, nivel3, nivel4)) {
+                        String cat = row[0] != null ? (String) row[0] : "Sin SKU";
+                        LocalDate fecha = convertToLocalDate(row[1]);
+                        Long delta = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        deltas.computeIfAbsent(fecha, k -> new HashMap<>()).put(cat, delta);
+                }
+
+                List<StockEvolutionDTO> result = new ArrayList<>();
+                for (LocalDate date = fechaInicio; !date.isAfter(fechaFin); date = date.plusDays(1)) {
+                        deltas.getOrDefault(date, Collections.emptyMap())
+                                        .forEach((k, v) -> current.merge(k, v, Long::sum));
+                        for (Map.Entry<String, Long> e : current.entrySet())
+                                result.add(new StockEvolutionDTO(e.getKey(), date, e.getValue()));
+                }
+                return result;
+        }
+
         /**
          * Get raw treemap data for frontend visualization
          * Now returns the flat list directly

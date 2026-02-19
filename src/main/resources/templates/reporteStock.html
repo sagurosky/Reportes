@@ -203,22 +203,46 @@
         </div>
 
         <div class="row">
-            <!-- Chart 1: Stock Evolution Line Chart -->
-            <div class="col-lg-6 mb-4">
+            <!-- Chart 1: Stock Evolution Line Chart (Full width) -->
+            <div class="col-12 mb-4">
                 <div class="card-translucent">
-                    <h4 class="text-black mb-3">
+                    <h4 class="text-black mb-2">
                         <i class="bi bi-graph-up"></i> Evolución de Stock por Ambiente
                     </h4>
-                    <div class="chart-container">
+
+                    <!-- Drill-down controls bar -->
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 rounded"
+                        style="background: rgba(0,151,167,0.08); border: 1px solid rgba(0,151,167,0.2);">
+                        <!-- Breadcrumb -->
+                        <nav aria-label="drill-down breadcrumb" class="me-auto">
+                            <ol id="drillBreadcrumb" class="breadcrumb mb-0" style="font-size:0.9rem;">
+                                <li class="breadcrumb-item active">Ambiente</li>
+                            </ol>
+                        </nav>
+                        <!-- Combobox for next level selection -->
+                        <div class="d-flex align-items-center gap-2">
+                            <label for="drillSelect" class="form-label mb-0 fw-bold text-nowrap"
+                                style="font-size:0.85rem;">
+                                <i class="bi bi-filter"></i> Profundizar en:
+                            </label>
+                            <select id="drillSelect" class="form-select form-select-sm"
+                                style="min-width:220px; max-width:320px;"
+                                onchange="handleDrillSelectChange(this.value)">
+                                <option value="">— Seleccioná una categoría —</option>
+                            </select>
+                        </div>
+                        <!-- Back button -->
+                        <button id="btnDrillUp" class="btn btn-sm btn-outline-secondary" style="display:none;"
+                            onclick="drillUp()">
+                            <i class="bi bi-arrow-up-circle"></i> Subir Nivel
+                        </button>
+                    </div>
+
+                    <div class="chart-container" style="height:550px;">
                         <div id="stockEvolutionLoader" class="spinner-overlay">
                             <div class="spinner-border text-primary" role="status"></div>
                         </div>
                         <canvas id="stockEvolutionChart"></canvas>
-                    </div>
-                    <div class="text-center">
-                        <button id="btnDrillDown" class="btn btn-sm btn-info" style="display:none;">
-                            <i class="bi bi-arrow-left"></i> Volver a Ambiente
-                        </button>
                     </div>
                 </div>
             </div>
@@ -345,157 +369,214 @@
 
         // Data containers (will be populated via AJAX)
         let stockEvolutionData = [];
-        let originalStockData = []; // Store original data for drill-up
         let treemapData = [];
         let consumoVsStockData = [];
         let stockoutsData = [];
 
-        // Chart 1: Stock Evolution Line Chart with Drill-Down
+        // ============================================================
+        // Chart 1: Stock Evolution — Combobox-driven drill-down
+        // Levels: ambiente → familia → nivel3 → nivel4 → sku
+        // ============================================================
         let stockChart;
-        let currentView = 'ambiente';
-        let selectedAmbiente = null;
 
-        function initStockEvolutionChart() {
+        // Current drill-down state
+        const LEVELS = ['ambiente', 'familia', 'nivel3', 'nivel4', 'sku'];
+        const LEVEL_LABELS = {
+            ambiente: 'Ambiente',
+            familia: 'Familia',
+            nivel3: 'Nivel 3',
+            nivel4: 'Nivel 4',
+            sku: 'SKU'
+        };
+        const NEXT_LEVEL_ENDPOINT = {
+            ambiente: 'familia',
+            familia: 'nivel3',
+            nivel3: 'nivel4',
+            nivel4: 'sku'
+        };
+
+        let drillState = {
+            level: 'ambiente',   // current level being displayed
+            ambiente: null,
+            familia: null,
+            nivel3: null,
+            nivel4: null
+        };
+        let drillHistory = []; // stack of previous drillState snapshots
+
+        function initStockEvolutionChart(data) {
             const ctx = document.getElementById('stockEvolutionChart').getContext('2d');
+            if (stockChart) stockChart.destroy();
 
-            if (stockChart) {
-                stockChart.destroy();
-            }
-
-            // Group data by categoria (ambiente initially)
-            const groupedData = {};
-            stockEvolutionData.forEach(item => {
-                if (!groupedData[item.categoria]) {
-                    groupedData[item.categoria] = [];
-                }
-                groupedData[item.categoria].push({
-                    x: item.fecha,
-                    y: item.cantidad
-                });
+            // Group data by 'categoria' field (returned by backend)
+            const grouped = {};
+            data.forEach(item => {
+                if (!grouped[item.categoria]) grouped[item.categoria] = [];
+                grouped[item.categoria].push({ x: item.fecha, y: item.cantidad });
             });
 
-            const datasets = Object.keys(groupedData).map((categoria, index) => {
-                const colors = [
-                    '#0097a7', '#ff9800', '#7e57c2', '#4caf50', '#e91e63',
-                    '#00bcd4', '#ffa726', '#9575cd', '#66bb6a', '#ec407a'
-                ];
-                return {
-                    label: categoria,
-                    data: groupedData[categoria],
-                    borderColor: colors[index % colors.length],
-                    backgroundColor: colors[index % colors.length] + '33',
-                    tension: 0.4,
-                    fill: false
-                };
-            });
+            const COLORS = [
+                '#0097a7', '#ff9800', '#7e57c2', '#4caf50', '#e91e63',
+                '#00bcd4', '#ffa726', '#9575cd', '#66bb6a', '#ec407a',
+                '#5c6bc0', '#26a69a', '#ef5350', '#78909c', '#8d6e63'
+            ];
+
+            const datasets = Object.keys(grouped).map((cat, i) => ({
+                label: cat,
+                data: grouped[cat],
+                borderColor: COLORS[i % COLORS.length],
+                backgroundColor: COLORS[i % COLORS.length] + '33',
+                tension: 0.4,
+                fill: false,
+                pointRadius: 3
+            }));
 
             stockChart = new Chart(ctx, {
                 type: 'line',
-                data: { datasets: datasets },
+                data: { datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'nearest',
-                        intersect: false
-                    },
+                    interaction: { mode: 'nearest', intersect: false },
                     plugins: {
-                        title: {
-                            display: true,
-                            text: currentView === 'ambiente'
-                                ? 'Stock por Ambiente a lo largo del tiempo'
-                                : 'Stock por Familia en ' + selectedAmbiente
-                        },
-                        legend: {
-                            position: 'bottom'
-                        },
+                        legend: { position: 'bottom' },
                         tooltip: {
                             mode: 'index',
                             intersect: false,
                             callbacks: {
-                                label: function (context) {
-                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' unidades';
-                                }
+                                label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString() + ' uds.'
                             }
                         }
                     },
                     scales: {
                         x: {
                             type: 'time',
-                            time: {
-                                unit: 'day',
-                                displayFormats: {
-                                    day: 'dd/MM'
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Fecha'
-                            }
+                            time: { unit: 'day', displayFormats: { day: 'dd/MM' } },
+                            title: { display: true, text: 'Fecha' }
                         },
                         y: {
                             beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Cantidad'
-                            }
-                        }
-                    },
-                    onClick: (event, elements) => {
-                        if (elements.length > 0 && currentView === 'ambiente') {
-                            const datasetIndex = elements[0].datasetIndex;
-                            const ambiente = stockChart.data.datasets[datasetIndex].label;
-                            drillDownToFamilia(ambiente);
+                            title: { display: true, text: 'Cantidad' }
                         }
                     }
                 }
             });
+
+            // After rendering, populate the combobox with current categories
+            populateCombobox(Object.keys(grouped));
+            updateDrillControls();
         }
 
-        async function drillDownToFamilia(ambiente) {
-            selectedAmbiente = ambiente;
-            currentView = 'familia';
-            document.getElementById('btnDrillDown').style.display = 'inline-block';
+        function populateCombobox(categories) {
+            const sel = document.getElementById('drillSelect');
+            sel.innerHTML = '<option value="">— Seleccioná una categoría —</option>';
+            const currentLevel = drillState.level;
+            // Only show combobox if we can go deeper
+            if (NEXT_LEVEL_ENDPOINT[currentLevel]) {
+                categories.sort().forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    sel.appendChild(opt);
+                });
+                sel.parentElement.parentElement.style.display = '';  // show controls
+            } else {
+                sel.parentElement.parentElement.style.display = 'none'; // hide combobox when at sku level
+            }
+        }
 
-            // Show loading
+        function updateDrillControls() {
+            // Breadcrumb
+            const bc = document.getElementById('drillBreadcrumb');
+            bc.innerHTML = '';
+            const steps = [{ level: 'ambiente', value: 'Ambiente' }];
+            if (drillState.ambiente) steps.push({ level: 'familia', value: drillState.ambiente });
+            if (drillState.familia) steps.push({ level: 'nivel3', value: drillState.familia });
+            if (drillState.nivel3) steps.push({ level: 'nivel4', value: drillState.nivel3 });
+            if (drillState.nivel4) steps.push({ level: 'sku', value: drillState.nivel4 });
+
+            steps.forEach((step, i) => {
+                const li = document.createElement('li');
+                li.className = 'breadcrumb-item' + (i === steps.length - 1 ? ' active' : '');
+                li.textContent = i === 0
+                    ? LEVEL_LABELS[step.level]
+                    : (LEVEL_LABELS[step.level] + ': ' + step.value);
+                bc.appendChild(li);
+            });
+
+            // Show "Subir Nivel" only if we've drilled down
+            document.getElementById('btnDrillUp').style.display =
+                drillHistory.length > 0 ? 'inline-block' : 'none';
+        }
+
+        async function handleDrillSelectChange(selectedValue) {
+            if (!selectedValue) return;
+
+            const currentLevel = drillState.level;
+            const nextLevelKey = NEXT_LEVEL_ENDPOINT[currentLevel];
+            if (!nextLevelKey) return;
+
+            // Push current state to history for back-navigation
+            drillHistory.push({ ...drillState });
+
+            // Update state  
+            drillState[currentLevel] = selectedValue;
+            drillState.level = nextLevelKey;
+
+            await loadDrillLevel();
+        }
+
+        async function drillUp() {
+            if (drillHistory.length === 0) return;
+            drillState = drillHistory.pop();
+            await loadDrillLevel();
+        }
+
+        async function loadDrillLevel() {
             showLoading('stockEvolutionLoader', true);
-            document.body.style.cursor = 'wait';
-
             try {
-                const params = new URLSearchParams({ fechaInicio, fechaFin, ambiente });
+                const params = new URLSearchParams({ fechaInicio, fechaFin });
                 if (sucursalId) params.append('sucursalId', sucursalId);
 
-                const response = await fetch(`/api/reportes/stock/evolution/familia?${params}`);
-                if (!response.ok) throw new Error('Error fetching family data');
+                const level = drillState.level;
+                let url;
 
+                if (level === 'ambiente') {
+                    url = `/api/reportes/stock/evolution?${params}`;
+                } else {
+                    // All deeper levels need at least ambiente
+                    params.append('ambiente', drillState.ambiente);
+                    if (level === 'familia') {
+                        url = `/api/reportes/stock/evolution/familia?${params}`;
+                    } else if (level === 'nivel3') {
+                        params.append('familia', drillState.familia);
+                        url = `/api/reportes/stock/evolution/nivel3?${params}`;
+                    } else if (level === 'nivel4') {
+                        params.append('familia', drillState.familia);
+                        params.append('nivel3', drillState.nivel3);
+                        url = `/api/reportes/stock/evolution/nivel4?${params}`;
+                    } else if (level === 'sku') {
+                        params.append('familia', drillState.familia);
+                        params.append('nivel3', drillState.nivel3);
+                        params.append('nivel4', drillState.nivel4);
+                        url = `/api/reportes/stock/evolution/sku?${params}`;
+                    }
+                }
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Error al cargar datos');
                 const data = await response.json();
 
-                // Update data and re-render
                 stockEvolutionData = data;
-                initStockEvolutionChart();
-
-            } catch (error) {
-                console.error('Error in drill-down:', error);
-                alert('No se pudieron cargar los datos de la familia.');
-                // Revert state
-                currentView = 'ambiente';
-                selectedAmbiente = null;
-                document.getElementById('btnDrillDown').style.display = 'none';
+                initStockEvolutionChart(data);
+            } catch (err) {
+                console.error('Drill-down error:', err);
+                alert('No se pudieron cargar los datos. Revisá la consola para más detalles.');
             } finally {
-                document.body.style.cursor = 'default';
                 showLoading('stockEvolutionLoader', false);
             }
         }
 
-        document.getElementById('btnDrillDown').addEventListener('click', () => {
-            currentView = 'ambiente';
-            selectedAmbiente = null;
-            document.getElementById('btnDrillDown').style.display = 'none';
-
-            // Restore original data
-            stockEvolutionData = [...originalStockData];
-            initStockEvolutionChart();
-        });
 
         // Chart 2: Treemap with Drill-down
         let treemapChart;
@@ -811,8 +892,12 @@
                 if (!response.ok) throw new Error('Error en la respuesta');
 
                 stockEvolutionData = await response.json();
-                originalStockData = [...stockEvolutionData]; // Cache initial data
-                initStockEvolutionChart();
+
+                // Reset drill-down state on fresh load
+                drillState = { level: 'ambiente', ambiente: null, familia: null, nivel3: null, nivel4: null };
+                drillHistory = [];
+
+                initStockEvolutionChart(stockEvolutionData);
             } catch (error) {
                 console.error('Error loading stock evolution:', error);
                 showError('stockEvolutionChart', 'Error al cargar evolución de stock');
