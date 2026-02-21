@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import plantilla.dominio.StockHistorico;
 import plantilla.repositorios.StockHistoricoRepository;
+import plantilla.repositorios.ProductoRepository;
+import org.springframework.data.domain.PageRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,6 +28,9 @@ public class ReporteStockService {
 
         @Autowired
         private StockHistoricoRepository stockHistoricoRepository;
+
+        @Autowired
+        private ProductoRepository productoRepository;
 
         /**
          * Get current stock snapshot grouped by ambiente and familia
@@ -275,6 +280,46 @@ public class ReporteStockService {
                 for (Object[] row : stockHistoricoRepository.findDailyStockDeltasBySku(fechaInicio, fechaFin, sid,
                                 ambiente, familia, nivel3, nivel4)) {
                         String cat = row[0] != null ? (String) row[0] : "Sin SKU";
+                        LocalDate fecha = convertToLocalDate(row[1]);
+                        Long delta = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        deltas.computeIfAbsent(fecha, k -> new HashMap<>()).put(cat, delta);
+                }
+
+                List<StockEvolutionDTO> result = new ArrayList<>();
+                for (LocalDate date = fechaInicio; !date.isAfter(fechaFin); date = date.plusDays(1)) {
+                        deltas.getOrDefault(date, Collections.emptyMap())
+                                        .forEach((k, v) -> current.merge(k, v, Long::sum));
+                        for (Map.Entry<String, Long> e : current.entrySet())
+                                result.add(new StockEvolutionDTO(e.getKey(), date, e.getValue()));
+                }
+                return result;
+        }
+
+        /**
+         * Search SKUs by prefix
+         */
+        public List<String> findSkusByPrefix(String prefix) {
+                return productoRepository.findSkusByPrefix(prefix, PageRequest.of(0, 10));
+        }
+
+        /**
+         * Get stock evolution for a single SKU
+         */
+        public List<StockEvolutionDTO> getStockEvolutionBySingleSku(LocalDate fechaInicio, LocalDate fechaFin,
+                        Long sucursalId, String sku) {
+                log.info("Stock evolution for single SKU='{}'", sku);
+                Long sid = sucursalId != null ? sucursalId : -1L;
+
+                Map<String, Long> current = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findInitialStockBySingleSku(fechaInicio, sid, sku)) {
+                        current.put(row[0] != null ? (String) row[0] : sku,
+                                        row[1] != null ? ((Number) row[1]).longValue() : 0L);
+                }
+
+                Map<LocalDate, Map<String, Long>> deltas = new HashMap<>();
+                for (Object[] row : stockHistoricoRepository.findDailyStockDeltasBySingleSku(fechaInicio, fechaFin, sid,
+                                sku)) {
+                        String cat = row[0] != null ? (String) row[0] : sku;
                         LocalDate fecha = convertToLocalDate(row[1]);
                         Long delta = row[2] != null ? ((Number) row[2]).longValue() : 0L;
                         deltas.computeIfAbsent(fecha, k -> new HashMap<>()).put(cat, delta);

@@ -544,6 +544,33 @@ public class Controlador {
         }
     }
 
+    @GetMapping("/api/reportes/stock/search-sku")
+    @ResponseBody
+    public ResponseEntity<?> searchSkus(@RequestParam(name = "prefix") String prefix) {
+        try {
+            return ResponseEntity.ok(reporteStockService.findSkusByPrefix(prefix));
+        } catch (Exception e) {
+            log.error("Error searching SKUs", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al buscar SKUs"));
+        }
+    }
+
+    @GetMapping("/api/reportes/stock/evolution/single-sku")
+    @ResponseBody
+    public ResponseEntity<?> getStockEvolutionBySingleSku(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            @RequestParam(name = "sku") String sku) {
+        try {
+            return ResponseEntity
+                    .ok(reporteStockService.getStockEvolutionBySingleSku(fechaInicio, fechaFin, sucursalId, sku));
+        } catch (Exception e) {
+            log.error("Error fetching single SKU evolution", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al cargar evolución del SKU"));
+        }
+    }
+
     // ===== STOCK AUDIT DASHBOARD =====
 
     @GetMapping("/stock/auditoria")

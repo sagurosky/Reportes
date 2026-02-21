@@ -134,13 +134,32 @@
             font-size: 0.9rem;
         }
 
-        .day-header {
-            cursor: pointer;
-            user-select: none;
-        }
-
         .day-header:hover {
             background-color: #f8f9fa;
+        }
+
+        /* SKU Search suggestions */
+        .sku-suggestions {
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .sku-suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .sku-suggestion-item:hover {
+            background-color: #e9ecef;
         }
     </style>
 
@@ -216,7 +235,7 @@
                         <!-- Breadcrumb -->
                         <nav aria-label="drill-down breadcrumb" class="me-auto">
                             <ol id="drillBreadcrumb" class="breadcrumb mb-0" style="font-size:0.9rem;">
-                                <li class="breadcrumb-item active">Ambiente</li>
+                                <li class="breadcrumb-item active"></li>
                             </ol>
                         </nav>
                         <!-- Combobox for next level selection -->
@@ -231,10 +250,28 @@
                                 <option value="">— Seleccioná una categoría —</option>
                             </select>
                         </div>
+                        <!-- SKU Search -->
+                        <div class="d-flex align-items-center gap-2 position-relative" style="min-width: 250px;">
+                            <label for="skuSearch" class="form-label mb-0 fw-bold text-nowrap"
+                                style="font-size:0.85rem;">
+                                <i class="bi bi-search"></i> Buscar SKU:
+                            </label>
+                            <div class="flex-grow-1">
+                                <input type="text" id="skuSearch" class="form-control form-control-sm"
+                                    placeholder="Mín. 6 caracteres..." autocomplete="off"
+                                    oninput="handleSkuSearchInput(this.value)">
+                                <div id="skuSuggestions" class="sku-suggestions"></div>
+                            </div>
+                        </div>
                         <!-- Back button -->
                         <button id="btnDrillUp" class="btn btn-sm btn-outline-secondary" style="display:none;"
                             onclick="drillUp()">
                             <i class="bi bi-arrow-up-circle"></i> Subir Nivel
+                        </button>
+                        <!-- Reset button -->
+                        <button id="btnResetChart" class="btn btn-sm btn-outline-danger"
+                            onclick="resetStockEvolution()">
+                            <i class="bi bi-x-circle"></i> Resetear Vista
                         </button>
                     </div>
 
@@ -400,7 +437,8 @@
             ambiente: null,
             familia: null,
             nivel3: null,
-            nivel4: null
+            nivel4: null,
+            selectedSku: null
         };
         let drillHistory = []; // stack of previous drillState snapshots
 
@@ -415,13 +453,39 @@
                 grouped[item.categoria].push({ x: item.fecha, y: item.cantidad });
             });
 
+            // At SKU level: hide series where ALL points are 0 (products never had stock)
+            const isSkuLevel = drillState.level === 'sku';
+            let hiddenCount = 0;
+            const filteredKeys = Object.keys(grouped).filter(cat => {
+                if (!isSkuLevel) return true;
+                const hasStock = grouped[cat].some(p => p.y > 0);
+                if (!hasStock) hiddenCount++;
+                return hasStock;
+            });
+
+            // Show/hide disclaimer note
+            let noteEl = document.getElementById('zeroSkuDisclaimer');
+            if (isSkuLevel && hiddenCount > 0) {
+                if (!noteEl) {
+                    noteEl = document.createElement('div');
+                    noteEl.id = 'zeroSkuDisclaimer';
+                    noteEl.className = 'text-muted mt-2';
+                    noteEl.style.cssText = 'font-size:0.78rem; letter-spacing:0.01em;';
+                    document.querySelector('.chart-container[style*="550px"]').after(noteEl);
+                }
+                noteEl.innerHTML = `<i class="bi bi-info-circle"></i> Se ocultaron <strong>${hiddenCount}</strong> SKU${hiddenCount !== 1 ? 's' : ''} con stock cero en todo el período.`;
+                noteEl.style.display = '';
+            } else if (noteEl) {
+                noteEl.style.display = 'none';
+            }
+
             const COLORS = [
                 '#0097a7', '#ff9800', '#7e57c2', '#4caf50', '#e91e63',
                 '#00bcd4', '#ffa726', '#9575cd', '#66bb6a', '#ec407a',
                 '#5c6bc0', '#26a69a', '#ef5350', '#78909c', '#8d6e63'
             ];
 
-            const datasets = Object.keys(grouped).map((cat, i) => ({
+            const datasets = filteredKeys.map((cat, i) => ({
                 label: cat,
                 data: grouped[cat],
                 borderColor: COLORS[i % COLORS.length],
@@ -471,8 +535,8 @@
             const sel = document.getElementById('drillSelect');
             sel.innerHTML = '<option value="">— Seleccioná una categoría —</option>';
             const currentLevel = drillState.level;
-            // Only show combobox if we can go deeper
-            if (NEXT_LEVEL_ENDPOINT[currentLevel]) {
+            // Only show combobox if we can go deeper and NOT in single SKU mode
+            if (NEXT_LEVEL_ENDPOINT[currentLevel] && !drillState.selectedSku) {
                 categories.sort().forEach(cat => {
                     const opt = document.createElement('option');
                     opt.value = cat;
@@ -489,24 +553,86 @@
             // Breadcrumb
             const bc = document.getElementById('drillBreadcrumb');
             bc.innerHTML = '';
-            const steps = [{ level: 'ambiente', value: 'Ambiente' }];
-            if (drillState.ambiente) steps.push({ level: 'familia', value: drillState.ambiente });
-            if (drillState.familia) steps.push({ level: 'nivel3', value: drillState.familia });
-            if (drillState.nivel3) steps.push({ level: 'nivel4', value: drillState.nivel3 });
-            if (drillState.nivel4) steps.push({ level: 'sku', value: drillState.nivel4 });
+            const steps = [{ level: '', value: '' }];
+            if (drillState.ambiente) steps.push({ level: 'ambiente', value: drillState.ambiente });
+            if (drillState.familia) steps.push({ level: 'familia', value: drillState.familia });
+            if (drillState.nivel3) steps.push({ level: 'nivel3', value: drillState.nivel3 });
+            if (drillState.nivel4) steps.push({ level: 'nivel4', value: drillState.nivel4 });
 
             steps.forEach((step, i) => {
                 const li = document.createElement('li');
                 li.className = 'breadcrumb-item' + (i === steps.length - 1 ? ' active' : '');
                 li.textContent = i === 0
-                    ? LEVEL_LABELS[step.level]
+                    ? LEVEL_LABELS[step.level] || 'Ambientes'
                     : (LEVEL_LABELS[step.level] + ': ' + step.value);
                 bc.appendChild(li);
             });
 
-            // Show "Subir Nivel" only if we've drilled down
+            // If a specific SKU is selected, add it to breadcrumb
+            if (drillState.selectedSku) {
+                const li = document.createElement('li');
+                li.className = 'breadcrumb-item active';
+                li.textContent = 'SKU: ' + drillState.selectedSku;
+                bc.appendChild(li);
+            }
+
+            // Show "Subir Nivel" only if we've drilled down and NOT in single SKU mode
             document.getElementById('btnDrillUp').style.display =
-                drillHistory.length > 0 ? 'inline-block' : 'none';
+                (drillHistory.length > 0 && !drillState.selectedSku) ? 'inline-block' : 'none';
+        }
+
+        let skuSearchTimeout;
+        async function handleSkuSearchInput(prefix) {
+            const suggestionsEl = document.getElementById('skuSuggestions');
+            if (prefix.length < 6) {
+                suggestionsEl.style.display = 'none';
+                return;
+            }
+
+            clearTimeout(skuSearchTimeout);
+            skuSearchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`/api/reportes/stock/search-sku?prefix=${prefix}`);
+                    if (!response.ok) throw new Error();
+                    const skus = await response.json();
+
+                    if (skus.length > 0) {
+                        suggestionsEl.innerHTML = skus.map(sku => `
+                            <div class="sku-suggestion-item" onclick="selectSku('${sku}')">${sku}</div>
+                        `).join('');
+                        suggestionsEl.style.display = 'block';
+                    } else {
+                        suggestionsEl.style.display = 'none';
+                    }
+                } catch (err) {
+                    console.error('Error searching SKUs:', err);
+                }
+            }, 300);
+        }
+
+        async function selectSku(sku) {
+            document.getElementById('skuSearch').value = sku;
+            document.getElementById('skuSuggestions').style.display = 'none';
+
+            // Set single SKU mode
+            drillState.selectedSku = sku;
+            await loadDrillLevel();
+        }
+
+        async function resetStockEvolution() {
+            document.getElementById('skuSearch').value = '';
+            document.getElementById('skuSuggestions').style.display = 'none';
+
+            drillHistory = [];
+            drillState = {
+                level: 'ambiente',
+                ambiente: null,
+                familia: null,
+                nivel3: null,
+                nivel4: null,
+                selectedSku: null
+            };
+            await loadDrillLevel();
         }
 
         async function handleDrillSelectChange(selectedValue) {
@@ -541,7 +667,10 @@
                 const level = drillState.level;
                 let url;
 
-                if (level === 'ambiente') {
+                if (drillState.selectedSku) {
+                    params.append('sku', drillState.selectedSku);
+                    url = `/api/reportes/stock/evolution/single-sku?${params}`;
+                } else if (level === 'ambiente') {
                     url = `/api/reportes/stock/evolution?${params}`;
                 } else {
                     // All deeper levels need at least ambiente
