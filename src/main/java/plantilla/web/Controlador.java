@@ -571,6 +571,41 @@ public class Controlador {
         }
     }
 
+    @GetMapping("/api/reportes/stock/variacion-por-ambiente")
+    @ResponseBody
+    public ResponseEntity<?> getStockVariacionPorAmbiente(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin) {
+        try {
+            return ResponseEntity
+                    .ok(reporteStockService.getStockVariacionByAmbienteFamilia(fechaInicio, fechaFin, sucursalId));
+        } catch (Exception e) {
+            log.error("Error fetching stock variacion", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error al cargar variación de stock"));
+        }
+    }
+
+    @GetMapping("/api/reportes/stock/variacion-por-ambiente/export")
+    public ResponseEntity<byte[]> exportVariacionPorAmbiente(
+            @RequestParam(name = "sucursalId", required = false) Long sucursalId,
+            @RequestParam(name = "fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(name = "fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin) {
+        log.info("📥 Exportando variación de stock - Sucursal: {}, Fechas: {} a {}", sucursalId, fechaInicio, fechaFin);
+        try {
+            byte[] excelData = reporteStockService.exportVariacionToExcel(fechaInicio, fechaFin, sucursalId);
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"variacion_stock.xlsx\"")
+                    .contentType(org.springframework.http.MediaType
+                            .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelData);
+        } catch (Exception e) {
+            log.error("❌ Error exportando variación de stock a Excel", e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
     // ===== STOCK AUDIT DASHBOARD =====
 
     @GetMapping("/stock/auditoria")

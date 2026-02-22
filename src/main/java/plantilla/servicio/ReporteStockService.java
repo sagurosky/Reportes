@@ -336,6 +336,85 @@ public class ReporteStockService {
         }
 
         /**
+         * Get stock variation report grouped by ambiente and familia.
+         * Returns initial stock, final stock and % variation for each familia within
+         * each ambiente.
+         * Structure: Map<ambiente, List<[familia, inicial, final, variacion%]>>
+         */
+        public Map<String, Object> getStockVariacionByAmbienteFamilia(LocalDate fechaInicio, LocalDate fechaFin,
+                        Long sucursalId) {
+                log.info("Stock variacion by ambiente/familia: {} to {}", fechaInicio, fechaFin);
+                Long sid = sucursalId != null ? sucursalId : -1L;
+
+                // Build initial stock map: key = "ambiente|familia"
+                Map<String, Long> inicial = new LinkedHashMap<>();
+                for (Object[] row : stockHistoricoRepository.findInitialStockByAmbienteFamilia(fechaInicio, sid)) {
+                        String amb = row[0] != null ? (String) row[0] : "";
+                        String fam = row[1] != null ? (String) row[1] : "";
+                        Long qty = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        inicial.put(amb + "|" + fam, qty);
+                }
+
+                // Build final stock map: key = "ambiente|familia"
+                Map<String, Long> final_ = new LinkedHashMap<>();
+                for (Object[] row : stockHistoricoRepository.findFinalStockByAmbienteFamilia(fechaFin, sid)) {
+                        String amb = row[0] != null ? (String) row[0] : "";
+                        String fam = row[1] != null ? (String) row[1] : "";
+                        Long qty = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+                        final_.put(amb + "|" + fam, qty);
+                }
+
+                // Combine keys from both maps
+                Set<String> allKeys = new LinkedHashSet<>();
+                allKeys.addAll(inicial.keySet());
+                allKeys.addAll(final_.keySet());
+
+                // Group by ambiente
+                Map<String, List<Map<String, Object>>> byAmbiente = new LinkedHashMap<>();
+                for (String key : allKeys) {
+                        String[] parts = key.split("\\|", 2);
+                        String amb = parts[0];
+                        String fam = parts.length > 1 ? parts[1] : "";
+                        long ini = inicial.getOrDefault(key, 0L);
+                        long fin = final_.getOrDefault(key, 0L);
+                        double variacion = ini == 0 ? (fin == 0 ? 0.0 : 100.0)
+                                        : Math.round(((fin - ini) * 10000.0 / ini)) / 100.0;
+
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("familia", fam);
+                        row.put("inicial", ini);
+                        row.put("final", fin);
+                        row.put("variacion", variacion);
+                        byAmbiente.computeIfAbsent(amb, k -> new ArrayList<>()).add(row);
+                }
+
+                // Build response: list of {ambiente, filas, totales}
+                List<Map<String, Object>> ambientes = new ArrayList<>();
+                for (Map.Entry<String, List<Map<String, Object>>> entry : byAmbiente.entrySet()) {
+                        String amb = entry.getKey();
+                        List<Map<String, Object>> filas = entry.getValue();
+                        long totalIni = filas.stream().mapToLong(r -> (Long) r.get("inicial")).sum();
+                        long totalFin = filas.stream().mapToLong(r -> (Long) r.get("final")).sum();
+                        double totalVar = totalIni == 0 ? (totalFin == 0 ? 0.0 : 100.0)
+                                        : Math.round(((totalFin - totalIni) * 10000.0 / totalIni)) / 100.0;
+
+                        Map<String, Object> ambMap = new LinkedHashMap<>();
+                        ambMap.put("ambiente", amb);
+                        ambMap.put("filas", filas);
+                        ambMap.put("totalInicial", totalIni);
+                        ambMap.put("totalFinal", totalFin);
+                        ambMap.put("totalVariacion", totalVar);
+                        ambientes.add(ambMap);
+                }
+
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("fechaInicio", fechaInicio.toString());
+                result.put("fechaFin", fechaFin.toString());
+                result.put("ambientes", ambientes);
+                return result;
+        }
+
+        /**
          * Get raw treemap data for frontend visualization
          * Now returns the flat list directly
          */
@@ -554,6 +633,97 @@ public class ReporteStockService {
                                                 row.createCell(9).setCellValue("-");
                                         }
                                 }
+                        }
+
+                        // Auto-size columns
+                        for (int i = 0; i < columns.length; i++) {
+                                sheet.autoSizeColumn(i);
+                        }
+
+                        workbook.write(out);
+                        return out.toByteArray();
+                }
+        }
+
+        /**
+         * Export variacion de stock por ambiente/familia to Excel
+         */
+        public byte[] exportVariacionToExcel(LocalDate fechaInicio, LocalDate fechaFin, Long sucursalId)
+                        throws IOException {
+                log.info("Exporting variacion stock to Excel. {} to {}", fechaInicio, fechaFin);
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = getStockVariacionByAmbienteFamilia(fechaInicio, fechaFin, sucursalId);
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> ambientes = (List<Map<String, Object>>) data.get("ambientes");
+
+                try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                        Sheet sheet = workbook.createSheet("Variación por Ambiente");
+
+                        // Styles
+                        CellStyle headerStyle = workbook.createCellStyle();
+                        Font headerFont = workbook.createFont();
+                        headerFont.setBold(true);
+                        headerStyle.setFont(headerFont);
+                        headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+                        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+                        CellStyle totalStyle = workbook.createCellStyle();
+                        Font totalFont = workbook.createFont();
+                        totalFont.setBold(true);
+                        totalStyle.setFont(totalFont);
+                        totalStyle.setFillForegroundColor(IndexedColors.GREY_50_PERCENT.getIndex());
+                        totalStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+                        // Header Row
+                        String[] columns = { "Ambiente", "Familia", "Cant. Inicial", "Cant. Final", "Variación %",
+                                        "Fecha Inicio", "Fecha Fin" };
+                        Row headerRow = sheet.createRow(0);
+                        for (int i = 0; i < columns.length; i++) {
+                                Cell cell = headerRow.createCell(i);
+                                cell.setCellValue(columns[i]);
+                                cell.setCellStyle(headerStyle);
+                        }
+
+                        // Data Rows
+                        int rowIdx = 1;
+                        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                        String fIni = fechaInicio.format(fmt);
+                        String fFin = fechaFin.format(fmt);
+
+                        for (Map<String, Object> amb : ambientes) {
+                                String ambiente = (String) amb.get("ambiente");
+                                @SuppressWarnings("unchecked")
+                                List<Map<String, Object>> filas = (List<Map<String, Object>>) amb.get("filas");
+
+                                for (Map<String, Object> fila : filas) {
+                                        Row row = sheet.createRow(rowIdx++);
+                                        row.createCell(0).setCellValue(ambiente);
+                                        row.createCell(1).setCellValue((String) fila.get("familia"));
+                                        row.createCell(2).setCellValue(((Number) fila.get("inicial")).longValue());
+                                        row.createCell(3).setCellValue(((Number) fila.get("final")).longValue());
+                                        row.createCell(4).setCellValue(((Number) fila.get("variacion")).doubleValue());
+                                        row.createCell(5).setCellValue(fIni);
+                                        row.createCell(6).setCellValue(fFin);
+                                }
+
+                                // Subtotal row per ambiente
+                                Row totalRow = sheet.createRow(rowIdx++);
+                                totalRow.createCell(0).setCellValue(ambiente);
+                                Cell totalLabelCell = totalRow.createCell(1);
+                                totalLabelCell.setCellValue("TOTAL");
+                                totalLabelCell.setCellStyle(totalStyle);
+                                Cell totalIniCell = totalRow.createCell(2);
+                                totalIniCell.setCellValue(((Number) amb.get("totalInicial")).longValue());
+                                totalIniCell.setCellStyle(totalStyle);
+                                Cell totalFinCell = totalRow.createCell(3);
+                                totalFinCell.setCellValue(((Number) amb.get("totalFinal")).longValue());
+                                totalFinCell.setCellStyle(totalStyle);
+                                Cell totalVarCell = totalRow.createCell(4);
+                                totalVarCell.setCellValue(((Number) amb.get("totalVariacion")).doubleValue());
+                                totalVarCell.setCellStyle(totalStyle);
+                                totalRow.createCell(5).setCellValue(fIni);
+                                totalRow.createCell(6).setCellValue(fFin);
                         }
 
                         // Auto-size columns
