@@ -610,8 +610,12 @@
             clearTimeout(skuSearchTimeout);
             skuSearchTimeout = setTimeout(async () => {
                 try {
-                    const response = await fetch(`/api/reportes/stock/search-sku?prefix=${prefix}`);
-                    if (!response.ok) throw new Error();
+                    const params = new URLSearchParams({ prefix });
+                    const response = await fetch(`/api/reportes/stock/search-sku?${params}`);
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        throw new Error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
+                    }
                     const skus = await response.json();
 
                     if (skus.length > 0) {
@@ -620,10 +624,13 @@
                         `).join('');
                         suggestionsEl.style.display = 'block';
                     } else {
-                        suggestionsEl.style.display = 'none';
+                        suggestionsEl.innerHTML = '<div class="p-2 text-muted" style="font-size:0.85rem;">No se encontraron resultados</div>';
+                        suggestionsEl.style.display = 'block';
                     }
                 } catch (err) {
                     console.error('Error searching SKUs:', err);
+                    suggestionsEl.innerHTML = `<div class="p-2 text-danger" style="font-size:0.85rem;">Error en la búsqueda</div>`;
+                    suggestionsEl.style.display = 'block';
                 }
             }, 300);
         }
@@ -1299,6 +1306,37 @@
 
             if (ambientes.length === 0) {
                 accordion.innerHTML = '<div class="text-muted p-3">Sin datos para el período seleccionado.</div>';
+            } else {
+                // Add Global Total Row at the very bottom
+                const globalTotalVarVal = parseFloat(data.globalTotalVariacion ?? 0);
+                const globalTotalColor = globalTotalVarVal > 0 ? '#198754' : globalTotalVarVal < 0 ? '#dc3545' : '#6c757d';
+                const globalTotalIcon = globalTotalVarVal > 0 ? '▲' : globalTotalVarVal < 0 ? '▼' : '—';
+                const globalTotalBadgeColor = globalTotalVarVal >= 0 ? 'bg-success' : 'bg-danger';
+                const globalTotalBadgeText = (globalTotalVarVal >= 0 ? '+' : '') + globalTotalVarVal.toFixed(2) + '%';
+
+                const globalTotalItem = document.createElement('div');
+                globalTotalItem.className = 'accordion-item border-primary mt-3 shadow-sm';
+                globalTotalItem.innerHTML = `
+                    <h2 class="accordion-header">
+                        <div class="accordion-button no-toggle bg-primary text-white d-flex align-items-center py-3" style="cursor: default;">
+                            <i class="bi bi-globe me-2"></i>
+                            <strong class="flex-grow-1">TOTAL GENERAL (TODOS LOS AMBIENTES)</strong>
+                            <span class="badge ${globalTotalBadgeColor} ms-3 border border-white">${globalTotalBadgeText}</span>
+                            <div class="ms-3 text-white-50" style="font-size:0.9rem;">
+                                Ini: ${fmtNum(data.globalTotalInicial)} &nbsp;|&nbsp; Fin: ${fmtNum(data.globalTotalFinal)}
+                            </div>
+                        </div>
+                    </h2>
+                    <div class="accordion-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr class="table-primary fw-bold text-center">
+                                    <td colspan="6">Resumen consolidado de todos los ambientes seleccionados</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>`;
+                accordion.appendChild(globalTotalItem);
             }
         }
 

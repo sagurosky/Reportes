@@ -299,7 +299,9 @@ public class ReporteStockService {
          * Search SKUs by prefix
          */
         public List<String> findSkusByPrefix(String prefix) {
-                return productoRepository.findSkusByPrefix(prefix, PageRequest.of(0, 10));
+                if (prefix == null)
+                        return Collections.emptyList();
+                return productoRepository.findSkusByPrefix(prefix.trim(), PageRequest.of(0, 10));
         }
 
         /**
@@ -390,6 +392,9 @@ public class ReporteStockService {
 
                 // Build response: list of {ambiente, filas, totales}
                 List<Map<String, Object>> ambientes = new ArrayList<>();
+                long globalIni = 0;
+                long globalFin = 0;
+
                 for (Map.Entry<String, List<Map<String, Object>>> entry : byAmbiente.entrySet()) {
                         String amb = entry.getKey();
                         List<Map<String, Object>> filas = entry.getValue();
@@ -397,6 +402,9 @@ public class ReporteStockService {
                         long totalFin = filas.stream().mapToLong(r -> (Long) r.get("final")).sum();
                         double totalVar = totalIni == 0 ? (totalFin == 0 ? 0.0 : 100.0)
                                         : Math.round(((totalFin - totalIni) * 10000.0 / totalIni)) / 100.0;
+
+                        globalIni += totalIni;
+                        globalFin += totalFin;
 
                         Map<String, Object> ambMap = new LinkedHashMap<>();
                         ambMap.put("ambiente", amb);
@@ -407,10 +415,16 @@ public class ReporteStockService {
                         ambientes.add(ambMap);
                 }
 
+                double globalVar = globalIni == 0 ? (globalFin == 0 ? 0.0 : 100.0)
+                                : Math.round(((globalFin - globalIni) * 10000.0 / globalIni)) / 100.0;
+
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("fechaInicio", fechaInicio.toString());
                 result.put("fechaFin", fechaFin.toString());
                 result.put("ambientes", ambientes);
+                result.put("globalTotalInicial", globalIni);
+                result.put("globalTotalFinal", globalFin);
+                result.put("globalTotalVariacion", globalVar);
                 return result;
         }
 
@@ -725,6 +739,27 @@ public class ReporteStockService {
                                 totalRow.createCell(5).setCellValue(fIni);
                                 totalRow.createCell(6).setCellValue(fFin);
                         }
+
+                        // Global Total Row
+                        Row globalTotalRow = sheet.createRow(rowIdx++);
+                        Cell gtLabelCell = globalTotalRow.createCell(1);
+                        gtLabelCell.setCellValue("TOTAL GENERAL");
+                        gtLabelCell.setCellStyle(totalStyle);
+
+                        Cell gtIniCell = globalTotalRow.createCell(2);
+                        gtIniCell.setCellValue(((Number) data.get("globalTotalInicial")).longValue());
+                        gtIniCell.setCellStyle(totalStyle);
+
+                        Cell gtFinCell = globalTotalRow.createCell(3);
+                        gtFinCell.setCellValue(((Number) data.get("globalTotalFinal")).longValue());
+                        gtFinCell.setCellStyle(totalStyle);
+
+                        Cell gtVarCell = globalTotalRow.createCell(4);
+                        gtVarCell.setCellValue(((Number) data.get("globalTotalVariacion")).doubleValue());
+                        gtVarCell.setCellStyle(totalStyle);
+
+                        globalTotalRow.createCell(5).setCellValue(fIni);
+                        globalTotalRow.createCell(6).setCellValue(fFin);
 
                         // Auto-size columns
                         for (int i = 0; i < columns.length; i++) {
